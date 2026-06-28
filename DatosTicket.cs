@@ -1,0 +1,109 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace FACTicket_Scanner
+{
+    public class ItemFactura
+    {
+        [JsonPropertyName("descripcion")]
+        public string Descripcion { get; set; } = "";
+
+        [JsonPropertyName("cantidad")]
+        public double Cantidad { get; set; } = 0;
+
+        [JsonPropertyName("precio_unitario")]
+        public double PrecioUnitario { get; set; } = 0;
+
+        [JsonPropertyName("subtotal")]
+        public double Subtotal { get; set; } = 0;
+    }
+
+    public class DatosTicket
+    {
+        [JsonPropertyName("empresa")]
+        public string Empresa { get; set; } = "";
+
+        [JsonPropertyName("fecha")]
+        public string Fecha { get; set; } = "";
+
+        [JsonPropertyName("fecha_vencimiento")]
+        public string FechaVencimiento { get; set; } = "";
+
+        [JsonPropertyName("numero")]
+        public string Numero { get; set; } = "";
+
+        [JsonPropertyName("cif")]
+        public string Cif { get; set; } = "";
+
+        [JsonPropertyName("direccion")]
+        public string Direccion { get; set; } = "";
+
+        [JsonPropertyName("telefono")]
+        public string Telefono { get; set; } = "";
+
+        [JsonPropertyName("receptor_nombre")]
+        public string ReceptorNombre { get; set; } = "";
+
+        [JsonPropertyName("receptor_cif")]
+        public string ReceptorCif { get; set; } = "";
+
+        [JsonPropertyName("receptor_direccion")]
+        public string ReceptorDireccion { get; set; } = "";
+
+        [JsonPropertyName("base")]
+        public string Base { get; set; } = "";
+
+        [JsonPropertyName("iva")]
+        public string Iva { get; set; } = "";
+
+        [JsonPropertyName("total")]
+        public string Total { get; set; } = "";
+
+        [JsonPropertyName("metodo_pago")]
+        public string MetodoPago { get; set; } = "";
+
+        [JsonPropertyName("items")]
+        public List<ItemFactura> Items { get; set; } = new List<ItemFactura>();
+
+        [JsonPropertyName("imagen")]
+        public string ImagenRelativa { get; set; } = "";
+
+        [JsonPropertyName("fecha_guardado")]
+        public string FechaGuardado { get; set; } = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+        // Uso interno: diagnóstico de fallo OCR (Bug C). No se serializa al
+        // JSON final porque JsonIgnore lo excluye explícitamente.
+        [JsonIgnore]
+        public string? ErrorDiagnostico { get; set; } = null;
+
+        // -----------------------------------------------------------------------
+        // Cargar lista desde tickets.json
+        // -----------------------------------------------------------------------
+        public static List<DatosTicket> CargarLista(string rutaJson)
+        {
+            try
+            {
+                if (File.Exists(rutaJson))
+                {
+                    string json = File.ReadAllText(rutaJson);
+                    var lista = JsonSerializer.Deserialize<List<DatosTicket>>(json);
+                    if (lista != null) return lista;
+                }
+            }
+            catch { }
+            return new List<DatosTicket>();
+        }
+
+        // -----------------------------------------------------------------------
+        // Guardar lista en tickets.json
+        // -----------------------------------------------------------------------
+        public static void GuardarLista(string rutaJson, List<DatosTicket> lista)
+        {
+            var opciones = new JsonSerializerOptions { WriteIndented = true };
+            File.WriteAllText(rutaJson, JsonSerializer.Serialize(lista, opciones));
+        }
+    }
+}

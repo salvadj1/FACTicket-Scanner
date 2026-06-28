@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net5.0-windows</TargetFramework>
+		<RootNamespace>FACTicket_Scanner</RootNamespace>
+		<UseWindowsForms>true</UseWindowsForms>
+		<Nullable>enable</Nullable>
+		<NoWarn>NU1605</NoWarn>
+		<ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+
+		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+		<SelfContained>true</SelfContained>
+		<PublishSingleFile>true</PublishSingleFile>
+		<PublishTrimmed>false</PublishTrimmed>
+		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+		<ApplicationIcon></ApplicationIcon>
+	</PropertyGroup>
+	<ItemGroup>
+		<Content Include="icono.ico">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+			<CopyToPublishDirectory>Always</CopyToPublishDirectory>
+		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="System.Drawing.Common" Version="6.0.0" />
+		<PackageReference Include="OpenCvSharp4" Version="4.9.0.20240103" />
+		<PackageReference Include="OpenCvSharp4.runtime.win" Version="4.9.0.20240103" />
+	</ItemGroup>
+</Project>
