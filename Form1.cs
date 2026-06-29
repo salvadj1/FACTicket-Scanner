@@ -199,10 +199,26 @@ namespace FACTicket_Scanner
             };
             btnBuscarCamara.Click += BtnBuscarCamara_Click;
 
+            // --- Botón cerrar visor web (rojo, extremo derecho, oculto hasta abrir el visor) ---
+            btnCerrarVisor = new ToolStripButton
+            {
+                Text = "✕",
+                ForeColor = Color.White,
+                BackColor = Color.Firebrick,
+                ToolTipText = "Cerrar visor web",
+                DisplayStyle = ToolStripItemDisplayStyle.Text,
+                Font = new System.Drawing.Font("Segoe UI", 10f, System.Drawing.FontStyle.Bold),
+                AutoSize = true,
+                Alignment = ToolStripItemAlignment.Right,
+                Visible = false
+            };
+            btnCerrarVisor.Click += btnCerrarVisor_Click;
+
             // Orden visual izq→der: 📂 💾 | 🗂️ 🌐 | [USB/IP▾] [textbox] [resultado▾] [🔍] [🔁]
             // Con Alignment=Right se apilan desde la derecha en orden inverso
             menuStrip1.Items.AddRange(new ToolStripItem[]
             {
+                btnCerrarVisor,
                 Btn("🔁", "Reconectar última cámara",              (s, e) => ReconectarUltimaCamara()),
                 btnBuscarCamara,
                 cmbResultadoCamara,
@@ -1084,7 +1100,7 @@ namespace FACTicket_Scanner
             camara.IniciarSeleccionUsb(ajustes, this, a => album.GuardarAjustes(a));
         }
 
-        private void visorToolStripMenuItem_Click(object sender, EventArgs e)
+        private async void visorToolStripMenuItem_Click(object sender, EventArgs e)
         {
             try
             {
@@ -1096,12 +1112,29 @@ namespace FACTicket_Scanner
                     return;
                 }
 
-                Process.Start(new ProcessStartInfo { FileName = rutaHtml, UseShellExecute = true });
+                await webViewAlbum.EnsureCoreWebView2Async();
+                webViewAlbum.CoreWebView2.Navigate(new Uri(rutaHtml).AbsoluteUri);
+                panelIzquierdo.Visible = false;
+                panelDerecho.Visible = false;
+                panelVisor.Visible = true;
+                panelVisor.BringToFront();
+                btnCerrarVisor.Visible = true;
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Error al abrir el visor de tickets:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        // -----------------------------------------------------------------------
+        // Visor web: botón ✕ → cierra y vuelve a la pantalla principal
+        // -----------------------------------------------------------------------
+        private void btnCerrarVisor_Click(object? sender, EventArgs e)
+        {
+            panelVisor.Visible = false;
+            panelIzquierdo.Visible = true;
+            panelDerecho.Visible = true;
+            btnCerrarVisor.Visible = false;
         }
 
         // -----------------------------------------------------------------------

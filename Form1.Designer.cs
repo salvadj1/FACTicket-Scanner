@@ -40,10 +40,14 @@ namespace FACTicket_Scanner
             this.panelDerecho = new System.Windows.Forms.Panel();
             this.panelScrollable = new System.Windows.Forms.Panel();
             this.panelBotones = new System.Windows.Forms.Panel();
+            this.panelVisor = new System.Windows.Forms.Panel();
+            this.webViewAlbum = new Microsoft.Web.WebView2.WinForms.WebView2();
             this.menuStrip1.SuspendLayout();
             this.panelIzquierdo.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.panelDerecho.SuspendLayout();
+            this.panelVisor.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.webViewAlbum)).BeginInit();
             this.SuspendLayout();
             // 
             // menuStrip1
@@ -235,6 +239,25 @@ namespace FACTicket_Scanner
             this.panelBotones.Size = new System.Drawing.Size(1064, 380);
             this.panelBotones.TabIndex = 1;
             // 
+            // panelVisor
+            // 
+            this.panelVisor.Controls.Add(this.webViewAlbum);
+            this.panelVisor.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.panelVisor.Location = new System.Drawing.Point(0, 24);
+            this.panelVisor.Name = "panelVisor";
+            this.panelVisor.Size = new System.Drawing.Size(1280, 776);
+            this.panelVisor.TabIndex = 2;
+            this.panelVisor.Visible = false;
+            // 
+            // webViewAlbum
+            // 
+            this.webViewAlbum.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.webViewAlbum.Location = new System.Drawing.Point(0, 0);
+            this.webViewAlbum.Name = "webViewAlbum";
+            this.webViewAlbum.Size = new System.Drawing.Size(1280, 776);
+            this.webViewAlbum.TabIndex = 0;
+            this.webViewAlbum.ZoomFactor = 1D;
+            //
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -242,6 +265,7 @@ namespace FACTicket_Scanner
             this.ClientSize = new System.Drawing.Size(1280, 800);
             this.Controls.Add(this.panelDerecho);
             this.Controls.Add(this.panelIzquierdo);
+            this.Controls.Add(this.panelVisor);
             this.Controls.Add(this.menuStrip1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MainMenuStrip = this.menuStrip1;
@@ -252,6 +276,8 @@ namespace FACTicket_Scanner
             this.panelIzquierdo.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
             this.panelDerecho.ResumeLayout(false);
+            this.panelVisor.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.webViewAlbum)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -281,9 +307,12 @@ namespace FACTicket_Scanner
         private System.Windows.Forms.Panel panelDerecho;
         private System.Windows.Forms.Panel panelScrollable;
         private System.Windows.Forms.Panel panelBotones;
+        private System.Windows.Forms.Panel panelVisor;
+        private Microsoft.Web.WebView2.WinForms.WebView2 webViewAlbum;
         private System.Windows.Forms.ToolStripComboBox cmbTipoCamara;
         private System.Windows.Forms.ToolStripButton btnBuscarCamara;
         private System.Windows.Forms.ToolStripComboBox cmbResultadoCamara;
         private System.Windows.Forms.ToolStripTextBox txtUrlCamara;
+        private System.Windows.Forms.ToolStripButton btnCerrarVisor;
     }
 }
