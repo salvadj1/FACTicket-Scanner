@@ -12,7 +12,7 @@ namespace FACTicket_Scanner
 {
     public class Gemini
     {
-       
+
 
         private static readonly HttpClient _httpClient = new HttpClient();
 
@@ -85,7 +85,7 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
             string jsonBody = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync($"{DatosSecretos. ApiUrl}?key={DatosSecretos.ApiKey}", content);
+            var response = await _httpClient.PostAsync($"{DatosSecretos.ApiUrl}?key={DatosSecretos.ApiKey}", content);
             string responseBody = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
@@ -177,9 +177,11 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
         // -----------------------------------------------------------------------
         private static string LeerString(JsonElement el, string propiedad)
         {
-            if (el.TryGetProperty(propiedad, out var prop) &&
-                prop.ValueKind == JsonValueKind.String)
+            if (!el.TryGetProperty(propiedad, out var prop)) return "";
+            if (prop.ValueKind == JsonValueKind.String)
                 return prop.GetString()?.Trim() ?? "";
+            if (prop.ValueKind == JsonValueKind.Number)
+                return prop.GetDouble().ToString(System.Globalization.CultureInfo.InvariantCulture);
             return "";
         }
 

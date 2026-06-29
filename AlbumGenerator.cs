@@ -21,13 +21,33 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
+        // Recorre Facturas/{Año}/{Empresa}/{Factura_x}/datos.json y reconstruye
+        // la lista completa (sustituye al antiguo datos.json global único).
+        // -----------------------------------------------------------------------
+        private static List<DatosTicket> CargarTodasLasFacturas(string carpetaTickets)
+        {
+            var lista = new List<DatosTicket>();
+            if (!System.IO.Directory.Exists(carpetaTickets)) return lista;
+
+            foreach (string carpetaAnio in System.IO.Directory.GetDirectories(carpetaTickets))
+                foreach (string carpetaEmpresa in System.IO.Directory.GetDirectories(carpetaAnio))
+                    foreach (string carpetaFactura in System.IO.Directory.GetDirectories(carpetaEmpresa))
+                    {
+                        string rutaJson = System.IO.Path.Combine(carpetaFactura, "datos.json");
+                        var datos = DatosTicket.CargarUnico(rutaJson);
+                        if (datos != null) lista.Add(datos);
+                    }
+            return lista;
+        }
+
+        // -----------------------------------------------------------------------
         public void RegenerarAlbumInicial()
         {
             try
             {
                 string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
                 System.IO.Directory.CreateDirectory(carpetaTickets);
-                var lista = DatosTicket.CargarLista(System.IO.Path.Combine(carpetaTickets, NombreDatos));
+                var lista = CargarTodasLasFacturas(carpetaTickets);
                 HtmlBuilder.GenerarAlbum(carpetaTickets, lista, NombreAlbum);
             }
             catch { }
@@ -57,8 +77,7 @@ namespace FACTicket_Scanner
                         "Aviso Gemini", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
                 string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
-                string rutaJson = System.IO.Path.Combine(carpetaTickets, NombreDatos);
-                var listaExistente = DatosTicket.CargarLista(rutaJson);
+                var listaExistente = CargarTodasLasFacturas(carpetaTickets);
 
                 DatosTicket? duplicado = BuscarPosibleDuplicado(datos, listaExistente);
                 if (duplicado != null && !ConfirmarContinuarConDuplicado(duplicado))
@@ -70,32 +89,35 @@ namespace FACTicket_Scanner
                 DatosTicket? datosRevisados = MostrarDialogoRevision(datos);
                 if (datosRevisados == null) { actualizarEstado("Guardado cancelado"); return; }
 
-                string subcarpeta = !string.IsNullOrWhiteSpace(datosRevisados.Empresa)
+                string subcarpetaEmpresa = !string.IsNullOrWhiteSpace(datosRevisados.Empresa)
                     ? SanearNombreCarpeta(datosRevisados.Empresa) : "Sin_empresa";
-                string carpetaDestino = System.IO.Path.Combine(carpetaTickets, subcarpeta);
+                string nombreFactura = $"Factura_{DateTime.Now:yyyyMMdd_HHmmss}";
+                string carpetaDestino = System.IO.Path.Combine(
+                    carpetaTickets, DateTime.Now.Year.ToString(), subcarpetaEmpresa, nombreFactura);
                 System.IO.Directory.CreateDirectory(carpetaDestino);
 
-                string nombreArchivo = $"escaneo_{DateTime.Now:yyyyMMdd_HHmmss}.jpg";
-                string rutaImagen = System.IO.Path.Combine(carpetaDestino, nombreArchivo);
+                string rutaProcesada = System.IO.Path.Combine(carpetaDestino, "procesada.jpg");
+                string rutaOriginal = System.IO.Path.Combine(carpetaDestino, "original.jpg");
+                string rutaJsonFactura = System.IO.Path.Combine(carpetaDestino, "datos.json");
 
                 try
                 {
-                    Cv2.ImWrite(rutaImagen, imagenProcesada);
+                    Cv2.ImWrite(rutaProcesada, imagenProcesada);
+                    Cv2.ImWrite(rutaOriginal, original);
                     ajustes.UltimaCarpetaGuardado = carpetaDestino;
                     guardarAjustes(ajustes);
 
                     datosRevisados.ImagenRelativa = System.IO.Path.GetRelativePath(
-                        carpetaTickets, rutaImagen).Replace('\\', '/');
+                        carpetaTickets, rutaProcesada).Replace('\\', '/');
                     datosRevisados.FechaGuardado = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-                    // Reutilizamos la lista ya cargada al comprobar duplicados,
-                    // en vez de releerla del disco otra vez.
+                    DatosTicket.GuardarUnico(rutaJsonFactura, datosRevisados);
+
                     listaExistente.Add(datosRevisados);
-                    DatosTicket.GuardarLista(rutaJson, listaExistente);
                     HtmlBuilder.GenerarAlbum(carpetaTickets, listaExistente, NombreAlbum);
 
-                    actualizarEstado($"✅ Guardado: {rutaImagen}");
-                    MessageBox.Show($"Guardado en:\n{rutaImagen}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    actualizarEstado($"✅ Guardado: {carpetaDestino}");
+                    MessageBox.Show($"Guardado en:\n{carpetaDestino}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
                 {

@@ -105,5 +105,26 @@ namespace FACTicket_Scanner
             var opciones = new JsonSerializerOptions { WriteIndented = true };
             File.WriteAllText(rutaJson, JsonSerializer.Serialize(lista, opciones));
         }
+
+        // -----------------------------------------------------------------------
+        // Cargar/Guardar un único ticket (datos.json dentro de la carpeta de
+        // cada factura, estructura Año/Empresa/Factura_x/datos.json)
+        // -----------------------------------------------------------------------
+        public static DatosTicket? CargarUnico(string rutaJson)
+        {
+            try
+            {
+                if (File.Exists(rutaJson))
+                    return JsonSerializer.Deserialize<DatosTicket>(File.ReadAllText(rutaJson));
+            }
+            catch { }
+            return null;
+        }
+
+        public static void GuardarUnico(string rutaJson, DatosTicket datos)
+        {
+            var opciones = new JsonSerializerOptions { WriteIndented = true };
+            File.WriteAllText(rutaJson, JsonSerializer.Serialize(datos, opciones));
+        }
     }
 }
