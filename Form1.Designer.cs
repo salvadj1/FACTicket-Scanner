@@ -35,6 +35,18 @@ namespace FACTicket_Scanner
             this.ayudaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.aboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.logToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.cmbTipoCamara = new System.Windows.Forms.ToolStripComboBox();
+            this.txtUrlCamara = new System.Windows.Forms.ToolStripTextBox();
+            this.cmbResultadoCamara = new System.Windows.Forms.ToolStripComboBox();
+            this.btnBuscarCamara = new System.Windows.Forms.ToolStripButton();
+            this.btnReconectarRapido = new System.Windows.Forms.ToolStripButton();
+            this.separadorToolbarToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
+            this.btnVisorRapido = new System.Windows.Forms.ToolStripButton();
+            this.btnCarpetaRapida = new System.Windows.Forms.ToolStripButton();
+            this.separadorToolbar2ToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
+            this.btnGuardarRapido = new System.Windows.Forms.ToolStripButton();
+            this.btnAbrirRapido = new System.Windows.Forms.ToolStripButton();
+            this.btnCerrarVisor = new System.Windows.Forms.ToolStripButton();
             this.panelIzquierdo = new System.Windows.Forms.Panel();
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.panelDerecho = new System.Windows.Forms.Panel();
@@ -56,9 +68,24 @@ namespace FACTicket_Scanner
             this.archivoToolStripMenuItem,
             this.camaraMenuToolStripMenuItem,
             this.verToolStripMenuItem,
-            this.ayudaToolStripMenuItem});
+            this.ayudaToolStripMenuItem,
+            this.btnCerrarVisor,
+            this.btnReconectarRapido,
+            this.btnBuscarCamara,
+            this.cmbResultadoCamara,
+            this.txtUrlCamara,
+            this.cmbTipoCamara,
+            this.separadorToolbarToolStripMenuItem,
+            this.btnVisorRapido,
+            this.btnCarpetaRapida,
+            this.separadorToolbar2ToolStripMenuItem,
+            this.btnGuardarRapido,
+            this.btnAbrirRapido});
+            this.menuStrip1.Font = new System.Drawing.Font("Segoe UI", 10F);
+            this.menuStrip1.ImageScalingSize = new System.Drawing.Size(22, 22);
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
+            this.menuStrip1.ShowItemToolTips = true;
             this.menuStrip1.Size = new System.Drawing.Size(1280, 24);
             this.menuStrip1.TabIndex = 0;
             this.menuStrip1.Text = "menuStrip1";
@@ -187,6 +214,112 @@ namespace FACTicket_Scanner
             this.logToolStripMenuItem.Text = "🐛  Ver log de depuración";
             this.logToolStripMenuItem.Click += new System.EventHandler(this.logToolStripMenuItem_Click);
             // 
+            // cmbTipoCamara
+            // 
+            this.cmbTipoCamara.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.cmbTipoCamara.AutoSize = false;
+            this.cmbTipoCamara.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbTipoCamara.Name = "cmbTipoCamara";
+            this.cmbTipoCamara.Size = new System.Drawing.Size(80, 23);
+            this.cmbTipoCamara.ToolTipText = "Tipo de cámara";
+            this.cmbTipoCamara.SelectedIndexChanged += new System.EventHandler(this.CmbTipoCamara_SelectedIndexChanged);
+            // 
+            // txtUrlCamara
+            // 
+            this.txtUrlCamara.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.txtUrlCamara.AutoSize = false;
+            this.txtUrlCamara.Name = "txtUrlCamara";
+            this.txtUrlCamara.ReadOnly = true;
+            this.txtUrlCamara.Size = new System.Drawing.Size(180, 23);
+            this.txtUrlCamara.ToolTipText = "Fuente de la cámara activa";
+            // 
+            // cmbResultadoCamara
+            // 
+            this.cmbResultadoCamara.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.cmbResultadoCamara.AutoSize = false;
+            this.cmbResultadoCamara.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbResultadoCamara.Name = "cmbResultadoCamara";
+            this.cmbResultadoCamara.Size = new System.Drawing.Size(120, 23);
+            this.cmbResultadoCamara.ToolTipText = "Seleccionar cámara encontrada";
+            this.cmbResultadoCamara.SelectedIndexChanged += new System.EventHandler(this.CmbResultadoCamara_SelectedIndexChanged);
+            // 
+            // btnBuscarCamara
+            // 
+            this.btnBuscarCamara.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.btnBuscarCamara.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnBuscarCamara.Name = "btnBuscarCamara";
+            this.btnBuscarCamara.Text = "🔍";
+            this.btnBuscarCamara.ToolTipText = "Buscar cámaras";
+            this.btnBuscarCamara.Click += new System.EventHandler(this.BtnBuscarCamara_Click);
+            // 
+            // btnReconectarRapido
+            // 
+            this.btnReconectarRapido.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.btnReconectarRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnReconectarRapido.Name = "btnReconectarRapido";
+            this.btnReconectarRapido.Text = "🔁";
+            this.btnReconectarRapido.ToolTipText = "Reconectar última cámara";
+            this.btnReconectarRapido.Click += new System.EventHandler(this.BtnReconectarRapido_Click);
+            // 
+            // separadorToolbarToolStripMenuItem
+            // 
+            this.separadorToolbarToolStripMenuItem.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.separadorToolbarToolStripMenuItem.Name = "separadorToolbarToolStripMenuItem";
+            // 
+            // btnVisorRapido
+            // 
+            this.btnVisorRapido.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.btnVisorRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnVisorRapido.Name = "btnVisorRapido";
+            this.btnVisorRapido.Text = "🌐";
+            this.btnVisorRapido.ToolTipText = "Abrir visor web de facturas (Ctrl+W)";
+            this.btnVisorRapido.Click += new System.EventHandler(this.visorToolStripMenuItem_Click);
+            // 
+            // btnCarpetaRapida
+            // 
+            this.btnCarpetaRapida.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.btnCarpetaRapida.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnCarpetaRapida.Name = "btnCarpetaRapida";
+            this.btnCarpetaRapida.Text = "🗂️";
+            this.btnCarpetaRapida.ToolTipText = "Abrir carpeta de facturas";
+            this.btnCarpetaRapida.Click += new System.EventHandler(this.carpetaToolStripMenuItem_Click);
+            // 
+            // separadorToolbar2ToolStripMenuItem
+            // 
+            this.separadorToolbar2ToolStripMenuItem.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.separadorToolbar2ToolStripMenuItem.Name = "separadorToolbar2ToolStripMenuItem";
+            // 
+            // btnGuardarRapido
+            // 
+            this.btnGuardarRapido.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.btnGuardarRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnGuardarRapido.Name = "btnGuardarRapido";
+            this.btnGuardarRapido.Text = "💾";
+            this.btnGuardarRapido.ToolTipText = "Guardar factura procesada (Ctrl+S)";
+            this.btnGuardarRapido.Click += new System.EventHandler(this.guardarToolStripMenuItem_Click);
+            // 
+            // btnAbrirRapido
+            // 
+            this.btnAbrirRapido.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.btnAbrirRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnAbrirRapido.Name = "btnAbrirRapido";
+            this.btnAbrirRapido.Text = "📂";
+            this.btnAbrirRapido.ToolTipText = "Abrir imagen desde archivo (Ctrl+O)";
+            this.btnAbrirRapido.Click += new System.EventHandler(this.abrirToolStripMenuItem_Click);
+            // 
+            // btnCerrarVisor
+            // 
+            this.btnCerrarVisor.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.btnCerrarVisor.BackColor = System.Drawing.Color.Firebrick;
+            this.btnCerrarVisor.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
+            this.btnCerrarVisor.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.btnCerrarVisor.ForeColor = System.Drawing.Color.White;
+            this.btnCerrarVisor.Name = "btnCerrarVisor";
+            this.btnCerrarVisor.Text = "✕";
+            this.btnCerrarVisor.ToolTipText = "Cerrar visor web";
+            this.btnCerrarVisor.Visible = false;
+            this.btnCerrarVisor.Click += new System.EventHandler(this.btnCerrarVisor_Click);
+            // 
             // panelIzquierdo
             // 
             this.panelIzquierdo.Controls.Add(this.pictureBox1);
@@ -310,9 +443,16 @@ namespace FACTicket_Scanner
         private System.Windows.Forms.Panel panelVisor;
         private Microsoft.Web.WebView2.WinForms.WebView2 webViewAlbum;
         private System.Windows.Forms.ToolStripComboBox cmbTipoCamara;
-        private System.Windows.Forms.ToolStripButton btnBuscarCamara;
-        private System.Windows.Forms.ToolStripComboBox cmbResultadoCamara;
         private System.Windows.Forms.ToolStripTextBox txtUrlCamara;
+        private System.Windows.Forms.ToolStripComboBox cmbResultadoCamara;
+        private System.Windows.Forms.ToolStripButton btnBuscarCamara;
+        private System.Windows.Forms.ToolStripButton btnReconectarRapido;
+        private System.Windows.Forms.ToolStripSeparator separadorToolbarToolStripMenuItem;
+        private System.Windows.Forms.ToolStripButton btnVisorRapido;
+        private System.Windows.Forms.ToolStripButton btnCarpetaRapida;
+        private System.Windows.Forms.ToolStripSeparator separadorToolbar2ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripButton btnGuardarRapido;
+        private System.Windows.Forms.ToolStripButton btnAbrirRapido;
         private System.Windows.Forms.ToolStripButton btnCerrarVisor;
     }
 }

@@ -126,115 +126,46 @@ namespace FACTicket_Scanner
             carpetaToolStripMenuItem.Image = IconoTexto("🗂️", 16);
             aboutToolStripMenuItem.Image = IconoTexto("ℹ️", 16);
             logToolStripMenuItem.Image = IconoTexto("📋", 16);
+
+            // Iconos de los botones rápidos del toolbar (declarados en el Designer)
+            btnBuscarCamara.Image = IconoTexto("🔍", 22);
+            btnReconectarRapido.Image = IconoTexto("🔁", 22);
+            btnVisorRapido.Image = IconoTexto("🌐", 22);
+            btnCarpetaRapida.Image = IconoTexto("🗂️", 22);
+            btnGuardarRapido.Image = IconoTexto("💾", 22);
+            btnAbrirRapido.Image = IconoTexto("📂", 22);
         }
 
         // -----------------------------------------------------------------------
         // Botones de la barra de menú (iconos inline en menuStrip1)
         // -----------------------------------------------------------------------
+        // -----------------------------------------------------------------------
+        // Inicialización dinámica del toolbar.
+        // Los controles (combos, textbox, botones) ya están declarados y
+        // colocados en Form1.Designer.cs — aquí solo se rellena lo que NO
+        // se puede fijar en tiempo de diseño: opciones del combo, valor
+        // inicial dependiente de ajustes guardados, y el ajuste de margen
+        // según el ancho real del panel izquierdo.
+        // -----------------------------------------------------------------------
         private void ConstruirToolBar()
         {
-            menuStrip1.ImageScalingSize = new System.Drawing.Size(22, 22);
-            menuStrip1.Font = new System.Drawing.Font("Segoe UI", 10f);
-            menuStrip1.ShowItemToolTips = true;
-
-            ToolStripButton Btn(string emoji, string tooltip, EventHandler handler)
-            {
-                var b = new ToolStripButton
-                {
-                    Image = IconoTexto(emoji, 22),
-                    ToolTipText = tooltip,
-                    DisplayStyle = ToolStripItemDisplayStyle.Image,
-                    AutoSize = true,
-                    Alignment = ToolStripItemAlignment.Right
-                };
-                b.Click += handler;
-                return b;
-            }
-
-            // --- ComboBox tipo cámara (USB / IP) ---
-            cmbTipoCamara = new ToolStripComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                ToolTipText = "Tipo de cámara",
-                AutoSize = false,
-                Width = 80,
-                Alignment = ToolStripItemAlignment.Right
-            };
             cmbTipoCamara.Items.AddRange(new object[] { "📷  USB", "🔌  IP" });
             cmbTipoCamara.SelectedIndex = 0;
-            cmbTipoCamara.SelectedIndexChanged += CmbTipoCamara_SelectedIndexChanged;
 
-            // --- ComboBox resultados de búsqueda ---
-            cmbResultadoCamara = new ToolStripComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                ToolTipText = "Seleccionar cámara encontrada",
-                AutoSize = false,
-                Width = 120,
-                Alignment = ToolStripItemAlignment.Right
-            };
-            cmbResultadoCamara.SelectedIndexChanged += CmbResultadoCamara_SelectedIndexChanged;
-
-            // --- TextBox URL/fuente (siempre visible, readonly informativo) ---
-            txtUrlCamara = new ToolStripTextBox
-            {
-                ToolTipText = "Fuente de la cámara activa",
-                AutoSize = false,
-                Width = 180,
-                Alignment = ToolStripItemAlignment.Right,
-                ReadOnly = true
-            };
             // Texto inicial según tipo por defecto (USB)
             txtUrlCamara.Text = ajustes.UltimoIndiceCamaraUsb >= 0
                 ? $"USB Puerto {ajustes.UltimoIndiceCamaraUsb}" : "";
 
-            // --- Botón buscar cámara ---
-            btnBuscarCamara = new ToolStripButton
-            {
-                Image = IconoTexto("🔍", 22),
-                ToolTipText = "Buscar cámaras",
-                DisplayStyle = ToolStripItemDisplayStyle.Image,
-                AutoSize = true,
-                Alignment = ToolStripItemAlignment.Right
-            };
-            btnBuscarCamara.Click += BtnBuscarCamara_Click;
-
-            // --- Botón cerrar visor web (rojo, extremo derecho, oculto hasta abrir el visor) ---
-            btnCerrarVisor = new ToolStripButton
-            {
-                Text = "✕",
-                ForeColor = Color.White,
-                BackColor = Color.Firebrick,
-                ToolTipText = "Cerrar visor web",
-                DisplayStyle = ToolStripItemDisplayStyle.Text,
-                Font = new System.Drawing.Font("Segoe UI", 10f, System.Drawing.FontStyle.Bold),
-                AutoSize = true,
-                Alignment = ToolStripItemAlignment.Right,
-                Visible = false
-            };
-            btnCerrarVisor.Click += btnCerrarVisor_Click;
-
-            // Orden visual izq→der: 📂 💾 | 🗂️ 🌐 | [USB/IP▾] [textbox] [resultado▾] [🔍] [🔁]
-            // Con Alignment=Right se apilan desde la derecha en orden inverso
-            menuStrip1.Items.AddRange(new ToolStripItem[]
-            {
-                btnCerrarVisor,
-                Btn("🔁", "Reconectar última cámara",              (s, e) => ReconectarUltimaCamara()),
-                btnBuscarCamara,
-                cmbResultadoCamara,
-                txtUrlCamara,
-                cmbTipoCamara,
-                new ToolStripSeparator { Alignment = ToolStripItemAlignment.Right },
-                Btn("🌐", "Abrir visor web de facturas (Ctrl+W)", (s, e) => visorToolStripMenuItem_Click(s!, e)),
-                Btn("🗂️", "Abrir carpeta de facturas",            (s, e) => carpetaToolStripMenuItem_Click(s!, e)),
-                new ToolStripSeparator { Alignment = ToolStripItemAlignment.Right },
-                Btn("💾", "Guardar factura procesada (Ctrl+S)",   (s, e) => guardarToolStripMenuItem_Click(s!, e)),
-                Btn("📂", "Abrir imagen desde archivo (Ctrl+O)",  (s, e) => abrirToolStripMenuItem_Click(s!, e)),
-            });
-
             // Alinear toolbar al borde derecho del panelIzquierdo
             this.Resize += (s, e) => AjustarMargenToolbar();
             this.Load += (s, e) => AjustarMargenToolbar();
+        }
+
+        // Botón rápido del toolbar: reconectar sin diálogo (distinto del
+        // menú Cámara > Reconectar, que abre selección USB).
+        private void BtnReconectarRapido_Click(object? sender, EventArgs e)
+        {
+            ReconectarUltimaCamara();
         }
 
         private void AjustarMargenToolbar()
@@ -271,6 +202,7 @@ namespace FACTicket_Scanner
             this.MinimumSize = new System.Drawing.Size(800, 600);
 
             ConstruirToolBar();
+            AsignarIconosMenu();
             ConfigurarZoomImagen();
 
             album = new AlbumGenerator(NombreCarpeta, NombreAlbum, NombreDatos);
@@ -297,6 +229,9 @@ namespace FACTicket_Scanner
                 panelIzquierdo.Width = this.ClientSize.Width * 55 / 100;
                 if (zoomFactor > ZOOM_MIN) AplicarZoom();
             };
+
+            //Visualizar tickets al iniciar
+            visorToolStripMenuItem_Click(null, null);
         }
 
         // -----------------------------------------------------------------------
