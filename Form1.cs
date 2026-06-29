@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using OpenCvSharp;
+using System.Threading.Tasks;
 
 namespace FACTicket_Scanner
 {
@@ -104,7 +105,7 @@ namespace FACTicket_Scanner
             using var g = Graphics.FromImage(bmp);
             g.Clear(Color.Transparent);
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-            using var font = new Font("Segoe UI Emoji", size * 0.52f, GraphicsUnit.Pixel);
+            using var font = new Font("Segoe UI Emoji", size * 0.75f, GraphicsUnit.Pixel);
             var sf = new StringFormat
             {
                 Alignment = StringAlignment.Center,
@@ -132,11 +133,9 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         private void ConstruirToolBar()
         {
-            menuStrip1.ImageScalingSize = new System.Drawing.Size(30, 30);
+            menuStrip1.ImageScalingSize = new System.Drawing.Size(22, 22);
             menuStrip1.Font = new System.Drawing.Font("Segoe UI", 10f);
             menuStrip1.ShowItemToolTips = true;
-
-            menuStrip1.Items.Add(new ToolStripSeparator());
 
             ToolStripButton Btn(string emoji, string tooltip, EventHandler handler)
             {
@@ -145,24 +144,105 @@ namespace FACTicket_Scanner
                     Image = IconoTexto(emoji, 22),
                     ToolTipText = tooltip,
                     DisplayStyle = ToolStripItemDisplayStyle.Image,
-                    AutoSize = true
+                    AutoSize = true,
+                    Alignment = ToolStripItemAlignment.Right
                 };
                 b.Click += handler;
                 return b;
             }
 
+            // --- ComboBox tipo cámara (USB / IP) ---
+            cmbTipoCamara = new ToolStripComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                ToolTipText = "Tipo de cámara",
+                AutoSize = false,
+                Width = 80,
+                Alignment = ToolStripItemAlignment.Right
+            };
+            cmbTipoCamara.Items.AddRange(new object[] { "📷  USB", "🔌  IP" });
+            cmbTipoCamara.SelectedIndex = 0;
+            cmbTipoCamara.SelectedIndexChanged += CmbTipoCamara_SelectedIndexChanged;
+
+            // --- ComboBox resultados de búsqueda ---
+            cmbResultadoCamara = new ToolStripComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                ToolTipText = "Seleccionar cámara encontrada",
+                AutoSize = false,
+                Width = 120,
+                Alignment = ToolStripItemAlignment.Right
+            };
+            cmbResultadoCamara.SelectedIndexChanged += CmbResultadoCamara_SelectedIndexChanged;
+
+            // --- TextBox URL/fuente (siempre visible, readonly informativo) ---
+            txtUrlCamara = new ToolStripTextBox
+            {
+                ToolTipText = "Fuente de la cámara activa",
+                AutoSize = false,
+                Width = 180,
+                Alignment = ToolStripItemAlignment.Right,
+                ReadOnly = true
+            };
+            // Texto inicial según tipo por defecto (USB)
+            txtUrlCamara.Text = ajustes.UltimoIndiceCamaraUsb >= 0
+                ? $"USB Puerto {ajustes.UltimoIndiceCamaraUsb}" : "";
+
+            // --- Botón buscar cámara ---
+            btnBuscarCamara = new ToolStripButton
+            {
+                Image = IconoTexto("🔍", 22),
+                ToolTipText = "Buscar cámaras",
+                DisplayStyle = ToolStripItemDisplayStyle.Image,
+                AutoSize = true,
+                Alignment = ToolStripItemAlignment.Right
+            };
+            btnBuscarCamara.Click += BtnBuscarCamara_Click;
+
+            // Orden visual izq→der: 📂 💾 | 🗂️ 🌐 | [USB/IP▾] [textbox] [resultado▾] [🔍] [🔁]
+            // Con Alignment=Right se apilan desde la derecha en orden inverso
             menuStrip1.Items.AddRange(new ToolStripItem[]
             {
-                Btn("📂", "Abrir imagen desde archivo (Ctrl+O)",  (s, e) => abrirToolStripMenuItem_Click(s!, e)),
-                Btn("💾", "Guardar factura procesada (Ctrl+S)",   (s, e) => guardarToolStripMenuItem_Click(s!, e)),
-                new ToolStripSeparator(),
-                Btn("🗂️", "Abrir carpeta de facturas",            (s, e) => carpetaToolStripMenuItem_Click(s!, e)),
+                Btn("🔁", "Reconectar última cámara",              (s, e) => ReconectarUltimaCamara()),
+                btnBuscarCamara,
+                cmbResultadoCamara,
+                txtUrlCamara,
+                cmbTipoCamara,
+                new ToolStripSeparator { Alignment = ToolStripItemAlignment.Right },
                 Btn("🌐", "Abrir visor web de facturas (Ctrl+W)", (s, e) => visorToolStripMenuItem_Click(s!, e)),
-                new ToolStripSeparator(),
-                Btn("📷", "Seleccionar cámara USB / interna",     (s, e) => camaraToolStripMenuItem_Click(s!, e)),
-                Btn("🔌", "Configurar cámara IP",                 (s, e) => camarasIpToolStripMenuItem_Click(s!, e)),
-                Btn("🔍", "Buscar / reconectar cámaras",          (s, e) => reconectarToolStripMenuItem_Click(s!, e)),
+                Btn("🗂️", "Abrir carpeta de facturas",            (s, e) => carpetaToolStripMenuItem_Click(s!, e)),
+                new ToolStripSeparator { Alignment = ToolStripItemAlignment.Right },
+                Btn("💾", "Guardar factura procesada (Ctrl+S)",   (s, e) => guardarToolStripMenuItem_Click(s!, e)),
+                Btn("📂", "Abrir imagen desde archivo (Ctrl+O)",  (s, e) => abrirToolStripMenuItem_Click(s!, e)),
             });
+
+            // Alinear toolbar al borde derecho del panelIzquierdo
+            this.Resize += (s, e) => AjustarMargenToolbar();
+            this.Load += (s, e) => AjustarMargenToolbar();
+        }
+
+        private void AjustarMargenToolbar()
+        {
+            menuStrip1.Padding = new System.Windows.Forms.Padding(0, 0, this.ClientSize.Width - panelIzquierdo.Width, 0);
+        }
+
+        // -----------------------------------------------------------------------
+        // Muestra el logo cuando no hay cámara ni imagen activa
+        // -----------------------------------------------------------------------
+        private void MostrarLogo()
+        {
+            if (modoCaptura) return;
+            try
+            {
+                string ruta = System.IO.Path.Combine(AppContext.BaseDirectory, "facticket_logo.png");
+                if (System.IO.File.Exists(ruta))
+                {
+                    var bitmapAnterior = pictureBox1.Image;
+                    pictureBox1.Image = Image.FromFile(ruta);
+                    bitmapAnterior?.Dispose();
+                }
+            }
+            catch { }
         }
 
         // -----------------------------------------------------------------------
@@ -190,9 +270,10 @@ namespace FACTicket_Scanner
             this.Load += (s, e) =>
             {
                 panelIzquierdo.Width = this.ClientSize.Width * 55 / 100;
+                txtUrlCamara.Text = ajustes.UltimaUrlCamaraIp;
                 ConstruirPanelDerecho();
                 album.RegenerarAlbumInicial();
-                camara.ConectarCamaraRecordada(ajustes);
+                MostrarLogo();
             };
 
             this.Resize += (s, e) =>
@@ -238,6 +319,7 @@ namespace FACTicket_Scanner
         {
             btnCapturar.Visible = false;
             lblEstado.Text = "⚠️ Cámara desconectada";
+            MostrarLogo();
             MessageBox.Show("Se perdió la conexión con la cámara.", "Cámara desconectada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
@@ -246,6 +328,7 @@ namespace FACTicket_Scanner
             MessageBox.Show($"Error al inicializar la cámara: {mensaje}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             lblEstado.Text = "Error de cámara";
             btnCapturar.Visible = false;
+            MostrarLogo();
         }
 
         // -----------------------------------------------------------------------
@@ -915,6 +998,85 @@ namespace FACTicket_Scanner
             fotoCapturada?.Dispose();
             resultadoProcesado?.Dispose();
             base.OnFormClosing(e);
+        }
+
+        // -----------------------------------------------------------------------
+        // Toolbar: cambio de tipo cámara (USB / IP) → limpia resultados
+        // -----------------------------------------------------------------------
+        // -----------------------------------------------------------------------
+        // Toolbar: reconectar última cámara usada
+        // -----------------------------------------------------------------------
+        private void ReconectarUltimaCamara()
+        {
+            if (string.IsNullOrEmpty(ajustes.UltimoTipoCamara)) return;
+            camara.ConectarCamaraRecordada(ajustes);
+        }
+
+        private void CmbTipoCamara_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            bool esIp = cmbTipoCamara.SelectedIndex == 1;
+            cmbResultadoCamara.Items.Clear();
+            cmbResultadoCamara.Text = "";
+            txtUrlCamara.Text = esIp ? ajustes.UltimaUrlCamaraIp
+                                     : (ajustes.UltimoIndiceCamaraUsb >= 0 ? $"USB Puerto {ajustes.UltimoIndiceCamaraUsb}" : "");
+        }
+
+        // -----------------------------------------------------------------------
+        // Toolbar: botón buscar → delega en CameraManager
+        // -----------------------------------------------------------------------
+        private async void BtnBuscarCamara_Click(object? sender, EventArgs e)
+        {
+            bool esUsb = cmbTipoCamara.SelectedIndex == 0;
+            cmbResultadoCamara.Items.Clear();
+            btnBuscarCamara.Enabled = false;
+            btnBuscarCamara.ToolTipText = "Buscando...";
+
+            if (esUsb)
+            {
+                var puertos = await Task.Run(() => camara.DetectarCamarasUsb());
+                foreach (int p in puertos)
+                    cmbResultadoCamara.Items.Add($"Puerto {p}");
+            }
+            else
+            {
+                var ips = await camara.EscanearCamarasIpAsync();
+                foreach (string ip in ips)
+                    cmbResultadoCamara.Items.Add(ip);
+            }
+
+            btnBuscarCamara.Enabled = true;
+            btnBuscarCamara.ToolTipText = "Buscar cámaras";
+
+            if (cmbResultadoCamara.Items.Count > 0)
+                cmbResultadoCamara.SelectedIndex = 0;
+            else
+                MessageBox.Show(esUsb ? "No se encontraron cámaras USB." : "No se encontraron cámaras IP en la red.",
+                    "Búsqueda", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        // -----------------------------------------------------------------------
+        // Toolbar: selección de resultado → conectar auto vía CameraManager
+        // -----------------------------------------------------------------------
+        private void CmbResultadoCamara_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (cmbResultadoCamara.SelectedItem == null) return;
+            bool esUsb = cmbTipoCamara.SelectedIndex == 0;
+            string valor = cmbResultadoCamara.SelectedItem.ToString()!;
+
+            if (esUsb)
+            {
+                if (int.TryParse(valor.Replace("Puerto ", ""), out int puerto))
+                {
+                    txtUrlCamara.Text = $"USB Puerto {puerto}";
+                    camara.ConectarUsb(puerto, ajustes, a => album.GuardarAjustes(a));
+                }
+            }
+            else
+            {
+                string url = $"http://{valor}:8080/video";
+                txtUrlCamara.Text = url;
+                camara.ConectarIp(url, ajustes, a => album.GuardarAjustes(a));
+            }
         }
 
         private void camaraToolStripMenuItem_Click(object sender, EventArgs e)

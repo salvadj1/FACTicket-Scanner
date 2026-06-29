@@ -195,7 +195,7 @@ namespace FACTicket_Scanner
             // 
             // pictureBox1
             // 
-            this.pictureBox1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
+            this.pictureBox1.BackColor = System.Drawing.Color.Black;
             this.pictureBox1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.pictureBox1.Location = new System.Drawing.Point(4, 4);
             this.pictureBox1.Name = "pictureBox1";
@@ -281,5 +281,9 @@ namespace FACTicket_Scanner
         private System.Windows.Forms.Panel panelDerecho;
         private System.Windows.Forms.Panel panelScrollable;
         private System.Windows.Forms.Panel panelBotones;
+        private System.Windows.Forms.ToolStripComboBox cmbTipoCamara;
+        private System.Windows.Forms.ToolStripButton btnBuscarCamara;
+        private System.Windows.Forms.ToolStripComboBox cmbResultadoCamara;
+        private System.Windows.Forms.ToolStripTextBox txtUrlCamara;
     }
 }

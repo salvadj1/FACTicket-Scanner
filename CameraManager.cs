@@ -389,7 +389,7 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
-        private async Task<List<string>> EscanearCamarasIpAsync()
+        public async Task<List<string>> EscanearCamarasIpAsync()
         {
             var encontradas = new List<string>();
             const string prefijo = "192.168.1";
@@ -403,20 +403,22 @@ namespace FACTicket_Scanner
                 {
                     try
                     {
+                        using var cts = new CancellationTokenSource(400);
                         using var cliente = new TcpClient();
-                        var conexion = cliente.ConnectAsync(ip, 8080);
-                        if (await Task.WhenAny(conexion, Task.Delay(400)) == conexion && cliente.Connected)
+                        await cliente.ConnectAsync(ip, 8080, cts.Token);
+                        if (cliente.Connected)
                             lock (encontradas) encontradas.Add(ip);
                     }
                     catch { }
                     finally { semaforo.Release(); }
                 }));
             }
-            await Task.WhenAll(tareas);
+            foreach (var t in tareas)
+                try { await t; } catch { }
             return encontradas;
         }
 
-        private List<int> DetectarCamarasUsb()
+        public List<int> DetectarCamarasUsb()
         {
             var disponibles = new List<int>();
             for (int i = 0; i < 5; i++)
@@ -425,6 +427,30 @@ namespace FACTicket_Scanner
                 catch { }
             }
             return disponibles;
+        }
+
+        // -----------------------------------------------------------------------
+        // Conectar directamente sin diálogo (desde toolbar)
+        // -----------------------------------------------------------------------
+        public void ConectarUsb(int puerto, AjustesEscaner ajustes, Action<AjustesEscaner> guardarAjustes)
+        {
+            Detener();
+            ajustes.UltimoTipoCamara = "USB";
+            ajustes.UltimoIndiceCamaraUsb = puerto;
+            guardarAjustes(ajustes);
+            fuenteActual = puerto.ToString();
+            InicializarCamara(fuenteActual);
+        }
+
+        public void ConectarIp(string url, AjustesEscaner ajustes, Action<AjustesEscaner> guardarAjustes)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return;
+            Detener();
+            ajustes.UltimoTipoCamara = "IP";
+            ajustes.UltimaUrlCamaraIp = url.Trim();
+            guardarAjustes(ajustes);
+            fuenteActual = url.Trim();
+            InicializarCamara(fuenteActual);
         }
 
         // -----------------------------------------------------------------------
