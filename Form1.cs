@@ -196,7 +196,7 @@ namespace FACTicket_Scanner
         public Form1()
         {
             InitializeComponent();
-            this.Text = "FACTicket Scanner";
+            this.Text = "FACTicket Scanner - 1.054 beta";
             this.Icon = new System.Drawing.Icon("icono.ico");
             this.WindowState = FormWindowState.Maximized;
             this.MinimumSize = new System.Drawing.Size(800, 600);
