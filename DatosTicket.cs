@@ -80,6 +80,12 @@ namespace FACTicket_Scanner
         [JsonPropertyName("fecha_guardado")]
         public string FechaGuardado { get; set; } = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
+        // Huella perceptual (pHash) de la imagen original, para detectar
+        // fotos repetidas sin llamar a Gemini. Opcional: los datos.json
+        // guardados antes de esta propiedad simplemente la cargan vacía.
+        [JsonPropertyName("phash")]
+        public string PHash { get; set; } = "";
+
         // Uso interno: diagnóstico de fallo OCR (Bug C). No se serializa al
         // JSON final porque JsonIgnore lo excluye explícitamente.
         [JsonIgnore]

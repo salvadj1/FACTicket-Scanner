@@ -896,6 +896,29 @@ namespace FACTicket_Scanner
                     return;
                 }
 
+                var duplicado = album.BuscarDuplicadoPorPHash(img, out int distanciaPHash);
+                if (duplicado != null)
+                {
+                    string resumen =
+                        $"Empresa: {duplicado.Empresa}\n" +
+                        $"Nº Factura: {(string.IsNullOrWhiteSpace(duplicado.Numero) ? "(sin número)" : duplicado.Numero)}\n" +
+                        $"Fecha: {duplicado.Fecha}\n" +
+                        $"Total: {duplicado.Total}\n" +
+                        $"Guardada el: {duplicado.FechaGuardado}\n" +
+                        $"Coincidencia: {63 - distanciaPHash}/63 bits";
+
+                    var respuesta = MessageBox.Show(
+                        $"Esta imagen parece coincidir con una factura ya escaneada:\n\n{resumen}\n\n¿Continuar de todos modos?",
+                        "Posible imagen duplicada", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+                    if (respuesta == DialogResult.No)
+                    {
+                        img.Dispose();
+                        CargarSiguienteDeCola();
+                        return;
+                    }
+                }
+
                 fotoCapturada?.Dispose();
                 fotoCapturada = img;
                 rotacionActual = 0;
@@ -1232,6 +1255,12 @@ namespace FACTicket_Scanner
             var conversor = new Conversor_IMG_PDF();
             conversor.ShowDialog(this);
             conversor.Dispose();
+        }
+
+        private void analizarPhashDeTodasLasFacturasToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            lblEstado.Text = "Iniciando escaneo de pHash...";
+            album.EscanearPHashFacturas(msg => lblEstado.Text = msg);
         }
     }
 }

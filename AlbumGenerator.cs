@@ -518,6 +518,130 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
+        // pHash: huella perceptual de 63 bits basada en DCT (8x8 de baja
+        // frecuencia, sin el coeficiente DC). Robusta a compresión JPG y
+        // reescalados leves, a diferencia de un hash criptográfico normal.
+        // -----------------------------------------------------------------------
+        private static string CalcularPHash(Mat imagen)
+        {
+            using Mat gris = new Mat();
+            if (imagen.Channels() > 1) Cv2.CvtColor(imagen, gris, ColorConversionCodes.BGR2GRAY);
+            else imagen.CopyTo(gris);
+
+            using Mat pequena = new Mat();
+            Cv2.Resize(gris, pequena, new OpenCvSharp.Size(32, 32), 0, 0, InterpolationFlags.Area);
+
+            using Mat flotante = new Mat();
+            pequena.ConvertTo(flotante, MatType.CV_32F);
+
+            using Mat dct = new Mat();
+            Cv2.Dct(flotante, dct);
+
+            var valores = new List<float>();
+            for (int y = 0; y < 8; y++)
+                for (int x = 0; x < 8; x++)
+                    if (!(x == 0 && y == 0)) valores.Add(dct.At<float>(y, x));
+
+            var ordenados = valores.OrderBy(v => v).ToList();
+            float mediana = ordenados[ordenados.Count / 2];
+
+            var bits = new StringBuilder();
+            for (int y = 0; y < 8; y++)
+                for (int x = 0; x < 8; x++)
+                {
+                    if (x == 0 && y == 0) continue;
+                    bits.Append(dct.At<float>(y, x) > mediana ? '1' : '0');
+                }
+
+            return bits.ToString();
+        }
+
+        private static int DistanciaHamming(string a, string b)
+        {
+            int len = Math.Min(a.Length, b.Length);
+            int distancia = Math.Abs(a.Length - b.Length);
+            for (int i = 0; i < len; i++)
+                if (a[i] != b[i]) distancia++;
+            return distancia;
+        }
+
+        // Umbral: por debajo de estos bits distintos (de 63) se considera la
+        // misma foto. Ajustable si da falsos positivos/negativos en la práctica.
+        private const int UMBRAL_PHASH = 8;
+
+        // -----------------------------------------------------------------------
+        // Recorre todas las facturas guardadas y (re)calcula el pHash de su
+        // imagen original, actualizando cada datos.json. Pensado para
+        // ejecutarse manualmente (ej. ítem de menú) tras incorporar esta
+        // función a una base de datos ya existente.
+        // -----------------------------------------------------------------------
+        public void EscanearPHashFacturas(Action<string> actualizarEstado)
+        {
+            string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
+            if (!System.IO.Directory.Exists(carpetaTickets))
+            {
+                actualizarEstado("No hay carpeta de tickets todavía.");
+                return;
+            }
+
+            var rutasJson = System.IO.Directory.GetFiles(carpetaTickets, "datos.json", System.IO.SearchOption.AllDirectories);
+            int procesadas = 0, errores = 0;
+
+            foreach (var rutaJson in rutasJson)
+            {
+                try
+                {
+                    var datos = DatosTicket.CargarUnico(rutaJson);
+                    if (datos == null) continue;
+
+                    string carpeta = System.IO.Path.GetDirectoryName(rutaJson) ?? "";
+                    string rutaImagen = System.IO.Path.Combine(carpeta, "original.jpg");
+                    if (!System.IO.File.Exists(rutaImagen)) continue; // sin original.jpg: se omite, no es error
+
+                    using Mat img = Cv2.ImRead(rutaImagen);
+                    if (img.Empty()) { errores++; continue; }
+
+                    datos.PHash = CalcularPHash(img);
+                    DatosTicket.GuardarUnico(rutaJson, datos);
+                    procesadas++;
+                    actualizarEstado($"Escaneando pHash: {procesadas + errores}/{rutasJson.Length}");
+                }
+                catch { errores++; }
+            }
+
+            actualizarEstado($"✅ pHash completado: {procesadas} procesadas, {errores} con error.");
+        }
+
+        // -----------------------------------------------------------------------
+        // Busca si una imagen recién cargada/capturada ya coincide (por pHash)
+        // con alguna factura guardada previamente.
+        // -----------------------------------------------------------------------
+        public DatosTicket? BuscarDuplicadoPorPHash(Mat imagenNueva, out int distanciaEncontrada)
+        {
+            distanciaEncontrada = -1;
+            string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
+            string hashNuevo = CalcularPHash(imagenNueva);
+
+            var existentes = CargarTodasLasFacturas(carpetaTickets);
+            DatosTicket? mejor = null;
+            int mejorDistancia = int.MaxValue;
+
+            foreach (var t in existentes)
+            {
+                if (string.IsNullOrEmpty(t.PHash)) continue;
+                int d = DistanciaHamming(hashNuevo, t.PHash);
+                if (d < mejorDistancia) { mejorDistancia = d; mejor = t; }
+            }
+
+            if (mejor != null && mejorDistancia <= UMBRAL_PHASH)
+            {
+                distanciaEncontrada = mejorDistancia;
+                return mejor;
+            }
+            return null;
+        }
+
+        // -----------------------------------------------------------------------
         // Ajustes
         // -----------------------------------------------------------------------
         public string RutaAjustes()
