@@ -1070,6 +1070,7 @@ namespace FACTicket_Scanner
                 panelVisor.Visible = true;
                 panelVisor.BringToFront();
                 btnCerrarVisor.Visible = true;
+                btnExportar.Visible = true;
             }
             catch (Exception ex)
             {
@@ -1086,6 +1087,43 @@ namespace FACTicket_Scanner
             panelIzquierdo.Visible = true;
             panelDerecho.Visible = true;
             btnCerrarVisor.Visible = false;
+            btnExportar.Visible = false;
+        }
+
+        // -----------------------------------------------------------------------
+        // Visor web: botón Exportar → lee filtros activos del visor y abre
+        // el formulario exclusivo de exportación
+        // -----------------------------------------------------------------------
+        private async void btnExportar_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                string carpetaTickets = Path.Combine(Application.StartupPath, NombreCarpeta);
+
+                string anio = "", trimestre = "", empresa = "", jsonFacturaAbierta = "";
+                try
+                {
+                    anio = (await webViewAlbum.CoreWebView2.ExecuteScriptAsync(
+                        "document.getElementById('anioSel')?.value || ''")).Trim('"');
+                    trimestre = (await webViewAlbum.CoreWebView2.ExecuteScriptAsync(
+                        "document.getElementById('trimSel')?.value || ''")).Trim('"');
+                    empresa = (await webViewAlbum.CoreWebView2.ExecuteScriptAsync(
+                        "document.getElementById('filtroEmpresa')?.value || ''")).Trim('"');
+                    string script =
+                        "document.getElementById('modal').classList.contains('activo') && idxModal>=0 " +
+                        "? JSON.stringify(tickets[idxModal].json||'') : ''";
+                    string res = await webViewAlbum.CoreWebView2.ExecuteScriptAsync(script);
+                    jsonFacturaAbierta = System.Text.Json.JsonSerializer.Deserialize<string>(res) ?? "";
+                }
+                catch { }
+
+                using var form = new ExportarForm(carpetaTickets, anio, trimestre, empresa, jsonFacturaAbierta);
+                form.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al abrir la exportación:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         // -----------------------------------------------------------------------
@@ -1187,6 +1225,13 @@ namespace FACTicket_Scanner
             {
                 MessageBox.Show("Error al abrir el log:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void conversorIMGPDFToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var conversor = new Conversor_IMG_PDF();
+            conversor.ShowDialog(this);
+            conversor.Dispose();
         }
     }
 }

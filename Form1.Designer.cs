@@ -37,6 +37,7 @@ namespace FACTicket_Scanner
             this.ayudaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.aboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.logToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.btnExportar = new System.Windows.Forms.ToolStripButton();
             this.btnCerrarVisor = new System.Windows.Forms.ToolStripButton();
             this.btnReconectarRapido = new System.Windows.Forms.ToolStripButton();
             this.btnBuscarCamara = new System.Windows.Forms.ToolStripButton();
@@ -56,6 +57,8 @@ namespace FACTicket_Scanner
             this.panelBotones = new System.Windows.Forms.Panel();
             this.panelVisor = new System.Windows.Forms.Panel();
             this.webViewAlbum = new Microsoft.Web.WebView2.WinForms.WebView2();
+            this.utilidadesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.conversorIMGPDFToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.panelIzquierdo.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
@@ -72,8 +75,10 @@ namespace FACTicket_Scanner
             this.archivoToolStripMenuItem,
             this.camaraMenuToolStripMenuItem,
             this.verToolStripMenuItem,
+            this.utilidadesToolStripMenuItem,
             this.aPIToolStripMenuItem,
             this.ayudaToolStripMenuItem,
+            this.btnExportar,
             this.btnCerrarVisor,
             this.btnReconectarRapido,
             this.btnBuscarCamara,
@@ -205,7 +210,7 @@ namespace FACTicket_Scanner
             // editarClavesAPIToolStripMenuItem
             // 
             this.editarClavesAPIToolStripMenuItem.Name = "editarClavesAPIToolStripMenuItem";
-            this.editarClavesAPIToolStripMenuItem.Size = new System.Drawing.Size(180, 24);
+            this.editarClavesAPIToolStripMenuItem.Size = new System.Drawing.Size(178, 24);
             this.editarClavesAPIToolStripMenuItem.Text = "Editar claves API";
             this.editarClavesAPIToolStripMenuItem.Click += new System.EventHandler(this.editarClavesAPIToolStripMenuItem_Click);
             // 
@@ -231,6 +236,18 @@ namespace FACTicket_Scanner
             this.logToolStripMenuItem.Size = new System.Drawing.Size(239, 24);
             this.logToolStripMenuItem.Text = "🐛  Ver log de depuración";
             this.logToolStripMenuItem.Click += new System.EventHandler(this.logToolStripMenuItem_Click);
+            // 
+            // btnExportar
+            // 
+            this.btnExportar.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.btnExportar.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
+            this.btnExportar.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
+            this.btnExportar.Name = "btnExportar";
+            this.btnExportar.Size = new System.Drawing.Size(75, 23);
+            this.btnExportar.Text = "📦 Exportar";
+            this.btnExportar.ToolTipText = "Exportar documentos";
+            this.btnExportar.Visible = false;
+            this.btnExportar.Click += new System.EventHandler(this.btnExportar_Click);
             // 
             // btnCerrarVisor
             // 
@@ -421,6 +438,21 @@ namespace FACTicket_Scanner
             this.webViewAlbum.TabIndex = 0;
             this.webViewAlbum.ZoomFactor = 1D;
             // 
+            // utilidadesToolStripMenuItem
+            // 
+            this.utilidadesToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.conversorIMGPDFToolStripMenuItem});
+            this.utilidadesToolStripMenuItem.Name = "utilidadesToolStripMenuItem";
+            this.utilidadesToolStripMenuItem.Size = new System.Drawing.Size(81, 26);
+            this.utilidadesToolStripMenuItem.Text = "Utilidades";
+            // 
+            // conversorIMGPDFToolStripMenuItem
+            // 
+            this.conversorIMGPDFToolStripMenuItem.Name = "conversorIMGPDFToolStripMenuItem";
+            this.conversorIMGPDFToolStripMenuItem.Size = new System.Drawing.Size(215, 24);
+            this.conversorIMGPDFToolStripMenuItem.Text = "Conversor IMG > PDF";
+            this.conversorIMGPDFToolStripMenuItem.Click += new System.EventHandler(this.conversorIMGPDFToolStripMenuItem_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -484,7 +516,10 @@ namespace FACTicket_Scanner
         private System.Windows.Forms.ToolStripButton btnGuardarRapido;
         private System.Windows.Forms.ToolStripButton btnAbrirRapido;
         private System.Windows.Forms.ToolStripButton btnCerrarVisor;
+        private System.Windows.Forms.ToolStripButton btnExportar;
         private System.Windows.Forms.ToolStripMenuItem aPIToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem editarClavesAPIToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem utilidadesToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem conversorIMGPDFToolStripMenuItem;
     }
 }
