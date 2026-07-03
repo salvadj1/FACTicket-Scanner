@@ -71,6 +71,12 @@ namespace FACTicket_Scanner
         [JsonPropertyName("imagen")]
         public string ImagenRelativa { get; set; } = "";
 
+        [JsonPropertyName("pdf")]
+        public string PdfRelativa { get; set; } = "";
+
+        [JsonPropertyName("json")]
+        public string JsonRelativa { get; set; } = "";
+
         [JsonPropertyName("fecha_guardado")]
         public string FechaGuardado { get; set; } = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 

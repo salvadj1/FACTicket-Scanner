@@ -55,6 +55,10 @@ namespace FACTicket_Scanner
         private Button btnRotar = null!;
         private Button btnSalirLote = null!;
         private Label lblProgresoLote = null!;
+        private CheckBox chkGuardarOriginal = null!;
+        private CheckBox chkGuardarJpg = null!;
+        private CheckBox chkGuardarPdf = null!;
+        private CheckBox chkExtraerGemini = null!;
 
         private TrackBar trkBlock = null!;
         private TrackBar trkC = null!;
@@ -196,7 +200,7 @@ namespace FACTicket_Scanner
         public Form1()
         {
             InitializeComponent();
-            this.Text = "FACTicket Scanner - 1.054 beta";
+            this.Text = "FACTicket Scanner - 1.067 beta";
             this.Icon = new System.Drawing.Icon("icono.ico");
             this.WindowState = FormWindowState.Maximized;
             this.MinimumSize = new System.Drawing.Size(800, 600);
@@ -500,11 +504,22 @@ namespace FACTicket_Scanner
             btnGuardar.Click += BtnGuardar_Click;
             panelBotones.Controls.Add(btnGuardar);
 
+            // Fila: checkboxes de opciones de guardado
+            int wChk = (wP - 8) / 2;
+            chkGuardarOriginal = new CheckBox { Left = 0, Top = 60, Width = wChk, Height = 20, Text = "Guardar imagen original", Checked = true };
+            chkGuardarJpg = new CheckBox { Left = wChk + 8, Top = 60, Width = wChk, Height = 20, Text = "Guardar procesada .jpg", Checked = true };
+            chkGuardarPdf = new CheckBox { Left = 0, Top = 82, Width = wChk, Height = 20, Text = "Guardar procesada .pdf", Checked = true };
+            chkExtraerGemini = new CheckBox { Left = wChk + 8, Top = 82, Width = wChk, Height = 20, Text = "Extraer y guardar datos (Gemini)", Checked = true };
+            panelBotones.Controls.Add(chkGuardarOriginal);
+            panelBotones.Controls.Add(chkGuardarJpg);
+            panelBotones.Controls.Add(chkGuardarPdf);
+            panelBotones.Controls.Add(chkExtraerGemini);
+
             // Separador
             panelBotones.Controls.Add(new Label
             {
                 Left = 0,
-                Top = 58,
+                Top = 112,
                 Width = wP,
                 Height = 1,
                 BorderStyle = BorderStyle.FixedSingle,
@@ -515,7 +530,7 @@ namespace FACTicket_Scanner
             lblEstado = new Label
             {
                 Left = 0,
-                Top = 66,
+                Top = 120,
                 Width = wP - 160,
                 Height = 36,
                 Text = "Sin cámara – usa Configuracion > Camara",
@@ -529,7 +544,7 @@ namespace FACTicket_Scanner
             btnCapturar = new Button
             {
                 Left = wP - 152,
-                Top = 62,
+                Top = 116,
                 Width = 152,
                 Height = 40,
                 Text = "📷  Tomar foto",
@@ -546,7 +561,7 @@ namespace FACTicket_Scanner
             lblProgresoLote = new Label
             {
                 Left = 0,
-                Top = 104,
+                Top = 158,
                 Width = wP - 160,
                 Height = 22,
                 Text = "",
@@ -560,7 +575,7 @@ namespace FACTicket_Scanner
             btnSalirLote = new Button
             {
                 Left = wP - 152,
-                Top = 104,
+                Top = 158,
                 Width = 152,
                 Height = 28,
                 Text = "✖  Salir del lote",
@@ -819,6 +834,7 @@ namespace FACTicket_Scanner
 
             guardadoEnCurso = true;
             album.GuardarImagen(copiaImg, copiaOriginal, rot, ajustes,
+                chkGuardarOriginal.Checked, chkGuardarJpg.Checked, chkGuardarPdf.Checked, chkExtraerGemini.Checked,
                 a => album.GuardarAjustes(a),
                 msg => { lblEstado.Text = msg; },
                 () => { this.UseWaitCursor = false; btnCapturar.Enabled = true; },
@@ -1134,7 +1150,10 @@ namespace FACTicket_Scanner
                 MessageBox.Show("Error al abrir la carpeta de facturas:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
+        private void editarClavesAPIToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            GeminiAPI.AbrirGestionApis(this);
+        }
         // -----------------------------------------------------------------------
         // Menú: Ayuda > Acerca de
         // -----------------------------------------------------------------------

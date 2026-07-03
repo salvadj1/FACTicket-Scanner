@@ -27,6 +27,7 @@ namespace FACTicket_Scanner
         private int fallosConsecutivos = 0;
         private const int MAX_FALLOS_CONSECUTIVOS = 45;
         private string fuenteActual = "";
+        private bool huboConexionAlgunaVez = false;
 
         public bool EstaConectada => capture != null && capture.IsOpened();
         public string FuenteActual => fuenteActual;
@@ -110,6 +111,7 @@ namespace FACTicket_Scanner
 
                 string tipoStr = int.TryParse(fuente, out _) ? $"USB ({fuente})" : $"IP: {fuente}";
                 Conectada?.Invoke(this, tipoStr);
+                huboConexionAlgunaVez = true;
 
                 frame = new Mat();
                 timer = new System.Windows.Forms.Timer { Interval = 33 };
@@ -138,7 +140,8 @@ namespace FACTicket_Scanner
             {
                 capture?.Release();
                 capture = null;
-                Desconectada?.Invoke(this, EventArgs.Empty);
+                if (huboConexionAlgunaVez)
+                    Desconectada?.Invoke(this, EventArgs.Empty);
             }
         }
 

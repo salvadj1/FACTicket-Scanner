@@ -16,6 +16,7 @@ namespace FACTicket_Scanner
             sb.AppendLine("<title>Panel de Facturas</title><style>");
             sb.AppendLine(Css());
             sb.AppendLine("</style></head><body>");
+            sb.AppendLine("<script src=\"https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js\"></script>");
             sb.AppendLine(Html());
             sb.AppendLine("<script>");
             sb.AppendLine("const tickets=" + JsonSerializer.Serialize(lista, new JsonSerializerOptions { WriteIndented = false }) + ";");
@@ -103,6 +104,9 @@ namespace FACTicket_Scanner
           <label>Empresa</label>
           <select id=""filtroEmpresa"" onchange=""filtrar()""><option value="""">Todas</option></select>
         </div>
+        <div class=""ctrl-grupo"">
+          <button id=""btnExportar"" onclick=""abrirExportar()"" title=""Exportar documentos"">📦 Exportar</button>
+        </div>
         <span id=""contador""></span>
       </div>
     </div>
@@ -140,6 +144,38 @@ namespace FACTicket_Scanner
         <div id=""tab-datos""></div>
         <pre id=""tab-json"" style=""display:none""></pre>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PANEL EXPORTAR — genera ZIP con documentos según ámbito
+═══════════════════════════════════════════════════════════ -->
+<div id=""exportPanel"" style=""display:none"">
+  <div id=""exportInner"">
+    <div id=""exportTitulo"">📦 Exportar documentos</div>
+
+    <div class=""exp-bloque"">
+      <div class=""exp-etiqueta"">Ámbito</div>
+      <label><input type=""radio"" name=""ambitoExp"" value=""trimestre"" checked> Trimestre actual (según panel izquierdo)</label>
+      <label><input type=""radio"" name=""ambitoExp"" value=""anio""> Año actual (filtro superior)</label>
+      <label><input type=""radio"" name=""ambitoExp"" value=""empresa""> Empresa filtrada</label>
+      <label><input type=""radio"" name=""ambitoExp"" value=""factura""> Factura abierta en el visor</label>
+    </div>
+
+    <div class=""exp-bloque"">
+      <div class=""exp-etiqueta"">Incluir</div>
+      <label><input type=""checkbox"" id=""expPdf"" checked> PDF</label>
+      <label><input type=""checkbox"" id=""expJson"" checked> JSON</label>
+      <label><input type=""checkbox"" id=""expJpg"" checked> JPG procesado</label>
+      <label><input type=""checkbox"" id=""expOriginal""> JPG original</label>
+    </div>
+
+    <div id=""exportEstado""></div>
+
+    <div id=""exportBotones"">
+      <button onclick=""cerrarExportar()"">Cancelar</button>
+      <button id=""btnGenerarZip"" onclick=""generarZip()"">Descargar ZIP</button>
     </div>
   </div>
 </div>
@@ -343,12 +379,28 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
 table.items{width:100%;border-collapse:collapse;font-size:.78em;margin-top:6px;}
 table.items th{background:#f5f5f5;padding:4px 8px;text-align:left;font-weight:600;}
 table.items td{padding:4px 8px;border-bottom:1px solid #f0f0f0;}
+#exportPanel{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;
+  display:flex;align-items:center;justify-content:center;}
+#exportInner{background:#fff;border-radius:10px;padding:20px 24px;width:360px;
+  max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+#exportTitulo{font-weight:700;font-size:1.05em;margin-bottom:14px;}
+.exp-bloque{margin-bottom:14px;}
+.exp-etiqueta{font-size:.75em;font-weight:700;color:var(--azul);
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+.exp-bloque label{display:block;font-size:.87em;padding:3px 0;cursor:pointer;}
+#exportEstado{font-size:.82em;color:#666;min-height:1.2em;margin-bottom:10px;}
+#exportBotones{display:flex;justify-content:flex-end;gap:8px;}
+#exportBotones button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-size:.87em;}
+#btnGenerarZip{background:var(--azul);color:#fff;}
+#exportBotones button:not(#btnGenerarZip){background:#eee;}
+#btnExportar{padding:6px 12px;border:1px solid #ddd;border-radius:6px;background:#fff;
+  cursor:pointer;font-size:.87em;}
 ";
 
         private static string Js() => @"
 const num = v => parseFloat((v||'0').toString().replace(',','.')) || 0;
 const eur = v => '€ ' + v.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});
-function isoFecha(t){ return (t.fecha_guardado||t.fecha||''); }
+function isoFecha(t){ return (t.fecha||t.fecha_guardado||''); }
 function anioFecha(t){ const m=(isoFecha(t)||'').match(/^(\d{4})/); return m?m[1]:''; }
 function mesFecha(t){ const m=(isoFecha(t)||'').match(/^\d{4}-(\d{2})/); return m?parseInt(m[1],10):0; }
 
@@ -643,6 +695,88 @@ document.addEventListener('keydown',function(e){
 
 function fi(l,v){ if(!v||v.toString().trim()==='') return ''; return `<div class=""fila""><span class=""e"">${l}</span><span class=""v"">${v}</span></div>`; }
 function sec(t){ return `<div class=""seccion"">${t}</div>`; }
+
+/* ─── Exportar ZIP ─── */
+function abrirExportar(){
+  document.getElementById('exportEstado').textContent='';
+  document.getElementById('exportPanel').style.display='flex';
+}
+function cerrarExportar(){ document.getElementById('exportPanel').style.display='none'; }
+
+function carpetaDe(t){
+  const ref = t.json || t.pdf || t.imagen || '';
+  const i = ref.lastIndexOf('/');
+  return i>=0 ? ref.substring(0,i+1) : '';
+}
+
+function ticketsAmbito(ambito){
+  if(ambito==='factura') return idxModal>=0 ? [tickets[idxModal]] : [];
+  if(ambito==='empresa'){
+    const empresa=document.getElementById('filtroEmpresa').value;
+    return tickets.filter(t=>!empresa || (t.empresa||'').trim()===empresa);
+  }
+  if(ambito==='anio'){
+    const anio=document.getElementById('anioSel').value;
+    return tickets.filter(t=>anioFecha(t)===anio);
+  }
+  // trimestre (por defecto)
+  const anio=document.getElementById('anioSel').value;
+  const trim=document.getElementById('trimSel').value;
+  return tickets.filter(t=>anioFecha(t)===anio && (!trim || Math.ceil(mesFecha(t)/3)===parseInt(trim)));
+}
+
+async function generarZip(){
+  const ambito=document.querySelector('input[name=""ambitoExp""]:checked').value;
+  const incluirPdf=document.getElementById('expPdf').checked;
+  const incluirJson=document.getElementById('expJson').checked;
+  const incluirJpg=document.getElementById('expJpg').checked;
+  const incluirOriginal=document.getElementById('expOriginal').checked;
+  const estado=document.getElementById('exportEstado');
+
+  const lista=ticketsAmbito(ambito);
+  if(!lista.length){ estado.textContent='No hay documentos para ese ámbito.'; return; }
+  if(!incluirPdf && !incluirJson && !incluirJpg && !incluirOriginal){ estado.textContent='Selecciona al menos un tipo de archivo.'; return; }
+
+  const zip=new JSZip();
+  let ok=0, fallos=0;
+
+  const archivos=[];
+  lista.forEach(t=>{
+    if(incluirPdf && t.pdf) archivos.push({ruta:t.pdf, carpeta:carpetaDe(t)});
+    if(incluirJson && t.json) archivos.push({ruta:t.json, carpeta:carpetaDe(t)});
+    if(incluirJpg && t.imagen) archivos.push({ruta:t.imagen, carpeta:carpetaDe(t)});
+    if(incluirOriginal) archivos.push({ruta:carpetaDe(t)+'original.jpg', carpeta:carpetaDe(t)});
+  });
+
+  for(let i=0;i<archivos.length;i++){
+    const a=archivos[i];
+    estado.textContent=`Descargando ${i+1}/${archivos.length}...`;
+    try{
+      const resp=await fetch(a.ruta);
+      if(!resp.ok) throw new Error();
+      const blob=await resp.blob();
+      zip.file(a.ruta, blob);
+      ok++;
+    }catch(e){ fallos++; }
+  }
+
+  if(ok===0){
+    estado.textContent='No se pudo acceder a ningún archivo. Si abriste el álbum con doble clic, sírvelo desde un servidor local (el navegador bloquea la lectura de archivos locales).';
+    return;
+  }
+
+  estado.textContent='Comprimiendo...';
+  const contenido=await zip.generateAsync({type:'blob'});
+  const url=URL.createObjectURL(contenido);
+  const a=document.createElement('a');
+  a.href=url; a.download=`export_${ambito}_${Date.now()}.zip`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+
+  estado.textContent = fallos>0
+    ? `Listo, con ${fallos} archivo(s) no encontrado(s).`
+    : 'Descarga completada.';
+}
 
 /* ─── Init ─── */
 poblarFiltros();
