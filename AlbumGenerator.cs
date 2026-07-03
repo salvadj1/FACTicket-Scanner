@@ -72,22 +72,12 @@ namespace FACTicket_Scanner
                 if (extraerConGemini)
                 {
                     actualizarEstado("⏳ Analizando con Gemini...");
-                    try
-                    {
-                        datos = await System.Threading.Tasks.Task.Run(() => GeminiAPI.ExtraerDatosFactura(original));
-                    }
-                    catch (Exception exGemini)
-                    {
-                        MessageBox.Show(
-                            $"No se pudo extraer datos con Gemini:\n\n{exGemini.Message}\n\nRellena los datos manualmente.",
-                            "Error Gemini", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        datos = new DatosTicket();
-                    }
+                    datos = await ExtraerConGeminiConReintento(original);
 
                     if (!string.IsNullOrEmpty(datos.ErrorDiagnostico))
-                        MessageBox.Show(
-                            $"Extracción incompleta:\n\n{datos.ErrorDiagnostico}\n\nPuedes rellenar los campos manualmente.",
-                            "Aviso Gemini", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MostrarAvisoAutoConfirmar(
+                            "Extracción incompleta. Puedes rellenar los campos manualmente.",
+                            "Aviso Gemini", segundos: 5);
                 }
                 else
                 {
@@ -245,11 +235,32 @@ namespace FACTicket_Scanner
 
             var btnOk = new Button { Text = "Guardar", Left = 80, Top = y, Width = 120, Height = 34, DialogResult = DialogResult.OK };
             var btnCan = new Button { Text = "Cancelar", Left = 250, Top = y, Width = 120, Height = 34, DialogResult = DialogResult.Cancel };
+            var lblContador = new Label { Left = 80, Top = y + 40, Width = 290, ForeColor = System.Drawing.Color.DimGray };
             dlg.Controls.Add(btnOk);
             dlg.Controls.Add(btnCan);
+            dlg.Controls.Add(lblContador);
             dlg.AcceptButton = btnOk;
             dlg.CancelButton = btnCan;
-            dlg.Height = y + 80;
+            dlg.Height = y + 120;
+
+            int restantes = 5;
+            lblContador.Text = $"Se guardará automáticamente en {restantes}s...";
+            using var timer = new Timer { Interval = 1000 };
+            timer.Tick += (s, e) =>
+            {
+                restantes--;
+                if (restantes <= 0)
+                {
+                    timer.Stop();
+                    dlg.DialogResult = DialogResult.OK;
+                    dlg.Close();
+                    return;
+                }
+                lblContador.Text = $"Se guardará automáticamente en {restantes}s...";
+            };
+            dlg.Shown += (s, e) => timer.Start();
+            btnOk.Click += (s, e) => timer.Stop();
+            btnCan.Click += (s, e) => timer.Stop();
 
             if (dlg.ShowDialog() != DialogResult.OK) return null;
 
@@ -333,11 +344,130 @@ namespace FACTicket_Scanner
                 $"Total: {existente.Total}\n" +
                 $"Guardada el: {existente.FechaGuardado}";
 
-            var resultado = MessageBox.Show(
+            return MostrarConfirmacionAutoConfirmar(
                 $"Parece que esta factura ya se guardó anteriormente:\n\n{resumen}\n\n¿Quieres continuar y guardarla de nuevo?",
-                "Posible factura duplicada", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                "Posible factura duplicada", resultadoPorDefecto: false, segundos: 5);
+        }
 
-            return resultado == DialogResult.Yes;
+        // -----------------------------------------------------------------------
+        // Diálogo Sí/No con cuenta atrás propia. resultadoPorDefecto se aplica
+        // si el usuario no responde a tiempo.
+        // -----------------------------------------------------------------------
+        private static bool MostrarConfirmacionAutoConfirmar(string mensaje, string titulo, bool resultadoPorDefecto, int segundos)
+        {
+            using var dlg = new Form
+            {
+                Text = titulo,
+                Width = 420,
+                Height = 210,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                StartPosition = FormStartPosition.CenterScreen,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+
+            var lblMensaje = new Label { Text = mensaje, Left = 15, Top = 15, Width = 380, Height = 100 };
+            var lblContador = new Label { Left = 15, Top = 120, Width = 380, ForeColor = System.Drawing.Color.DimGray };
+            var btnSi = new Button { Text = "Sí", Left = 130, Top = 150, Width = 100, Height = 32, DialogResult = DialogResult.Yes };
+            var btnNo = new Button { Text = "No", Left = 240, Top = 150, Width = 100, Height = 32, DialogResult = DialogResult.No };
+            dlg.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnSi, btnNo });
+            dlg.AcceptButton = resultadoPorDefecto ? btnSi : btnNo;
+
+            int restantes = segundos;
+            lblContador.Text = $"Se autoconfirmará en {restantes}s...";
+            using var timer = new Timer { Interval = 1000 };
+            timer.Tick += (s, e) =>
+            {
+                restantes--;
+                if (restantes <= 0)
+                {
+                    timer.Stop();
+                    dlg.DialogResult = resultadoPorDefecto ? DialogResult.Yes : DialogResult.No;
+                    dlg.Close();
+                    return;
+                }
+                lblContador.Text = $"Se autoconfirmará en {restantes}s...";
+            };
+            dlg.Shown += (s, e) => timer.Start();
+            btnSi.Click += (s, e) => timer.Stop();
+            btnNo.Click += (s, e) => timer.Stop();
+
+            return dlg.ShowDialog() == DialogResult.Yes;
+        }
+
+        // -----------------------------------------------------------------------
+        // Aviso simple (solo Aceptar) con cuenta atrás propia.
+        // -----------------------------------------------------------------------
+        private static void MostrarAvisoAutoConfirmar(string mensaje, string titulo, int segundos)
+        {
+            using var dlg = new Form
+            {
+                Text = titulo,
+                Width = 420,
+                Height = 180,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                StartPosition = FormStartPosition.CenterScreen,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+
+            var lblMensaje = new Label { Text = mensaje, Left = 15, Top = 15, Width = 380, Height = 70 };
+            var lblContador = new Label { Left = 15, Top = 90, Width = 380, ForeColor = System.Drawing.Color.DimGray };
+            var btnOk = new Button { Text = "Aceptar", Left = 150, Top = 115, Width = 100, Height = 32, DialogResult = DialogResult.OK };
+            dlg.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnOk });
+            dlg.AcceptButton = btnOk;
+
+            int restantes = segundos;
+            lblContador.Text = $"Se cerrará en {restantes}s...";
+            using var timer = new Timer { Interval = 1000 };
+            timer.Tick += (s, e) =>
+            {
+                restantes--;
+                if (restantes <= 0)
+                {
+                    timer.Stop();
+                    dlg.DialogResult = DialogResult.OK;
+                    dlg.Close();
+                    return;
+                }
+                lblContador.Text = $"Se cerrará en {restantes}s...";
+            };
+            dlg.Shown += (s, e) => timer.Start();
+            btnOk.Click += (s, e) => timer.Stop();
+
+            dlg.ShowDialog();
+        }
+
+        // -----------------------------------------------------------------------
+        // Extrae datos con Gemini. Si falla, abre el gestor de APIs para que
+        // el usuario elija/edite otra clave y reintenta automáticamente.
+        // -----------------------------------------------------------------------
+        private static async System.Threading.Tasks.Task<DatosTicket> ExtraerConGeminiConReintento(Mat original)
+        {
+            try
+            {
+                return await System.Threading.Tasks.Task.Run(() => GeminiAPI.ExtraerDatosFactura(original));
+            }
+            catch (Exception exGemini)
+            {
+                MessageBox.Show(
+                    $"No se pudo extraer datos con Gemini:\n\n{exGemini.Message}\n\nElige otra API key para reintentar.",
+                    "Error Gemini", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                GeminiAPI.AbrirGestionApis();
+
+                try
+                {
+                    return await System.Threading.Tasks.Task.Run(() => GeminiAPI.ExtraerDatosFactura(original));
+                }
+                catch (Exception exReintento)
+                {
+                    MessageBox.Show(
+                        $"Sigue sin poder extraer datos con Gemini:\n\n{exReintento.Message}\n\nRellena los datos manualmente.",
+                        "Error Gemini", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return new DatosTicket();
+                }
+            }
         }
 
         // -----------------------------------------------------------------------
