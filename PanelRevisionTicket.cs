@@ -148,7 +148,6 @@ namespace FACTicket_Scanner
         private void Finalizar(bool guardar)
         {
             _timer.Stop();
-            Visible = false;
 
             if (!guardar || _datosActuales == null)
             {

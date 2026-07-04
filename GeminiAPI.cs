@@ -197,6 +197,22 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
         // -----------------------------------------------------------------------
         // Mapea el JSON de Gemini a DatosTicket
         // -----------------------------------------------------------------------
+        // -----------------------------------------------------------------------
+        // Normaliza cualquier fecha (con puntos, guiones o barras, año de 2 o 4
+        // dígitos) al formato dd/MM/yyyy usado en el resto de la aplicación.
+        // -----------------------------------------------------------------------
+        private static string NormalizarFecha(string fecha)
+        {
+            if (string.IsNullOrWhiteSpace(fecha)) return fecha;
+            var m = System.Text.RegularExpressions.Regex.Match(fecha, @"^(\d{2})[-/.](\d{2})[-/.](\d{2,4})$");
+            if (!m.Success) return fecha;
+            string dia = m.Groups[1].Value;
+            string mes = m.Groups[2].Value;
+            string anio = m.Groups[3].Value;
+            if (anio.Length == 2) anio = "20" + anio;
+            return $"{dia}/{mes}/{anio}";
+        }
+
         private static DatosTicket MapearADatosTicket(string rawJson)
         {
             var datos = new DatosTicket();
@@ -208,8 +224,8 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
                 datos.Numero = LeerString(root, "numero_factura");
                 string tipo = LeerString(root, "tipo_documento").ToLowerInvariant();
                 datos.TipoDocumento = (tipo == "albaran" || tipo == "ticket") ? tipo : "factura";
-                datos.Fecha = LeerString(root, "fecha_emision");
-                datos.FechaVencimiento = LeerString(root, "fecha_vencimiento");
+                datos.Fecha = NormalizarFecha(LeerString(root, "fecha_emision"));
+                datos.FechaVencimiento = NormalizarFecha(LeerString(root, "fecha_vencimiento"));
                 datos.Total = LeerString(root, "total");
                 datos.Base = LeerString(root, "base_imponible");
                 string ivaImporteStr = LeerString(root, "iva_importe");

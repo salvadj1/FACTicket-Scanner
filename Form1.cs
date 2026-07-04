@@ -12,8 +12,8 @@ namespace FACTicket_Scanner
 {
     public partial class Form1 : Form
     {
-        public  const int Timeout_Dialogos = 10;
-        private const string Version = " - 1.38 beta";
+        public const int Timeout_Dialogos = 10;
+        private const string Version = " - 1.45 beta";
         // -----------------------------------------------------------------------
         // Dependencias
         // -----------------------------------------------------------------------
@@ -106,6 +106,12 @@ namespace FACTicket_Scanner
             carpetaToolStripMenuItem.Image = IconoTexto("🗂️", 16);
             aboutToolStripMenuItem.Image = IconoTexto("ℹ️", 16);
             logToolStripMenuItem.Image = IconoTexto("📋", 16);
+            exportarToolStripMenuItem.Image = IconoTexto("📤", 16);
+            camaraToolStripMenuItem.Image = IconoTexto("📷", 16);
+            visorToolStripMenuItem.Image = IconoTexto("🌐", 16);
+            conversorIMGPDFToolStripMenuItem.Image = IconoTexto("🖼️", 16);
+            analizarPhashDeTodasLasFacturasToolStripMenuItem.Image = IconoTexto("🔎", 16);
+            editarClavesAPIToolStripMenuItem.Image = IconoTexto("🔑", 16);
 
             // Iconos de los botones rápidos del toolbar (declarados en el Designer)
             btnBuscarCamara.Image = IconoTexto("🔍", 22);
@@ -150,7 +156,6 @@ namespace FACTicket_Scanner
 
         private void AjustarMargenToolbar()
         {
-            menuStrip1.Padding = new System.Windows.Forms.Padding(0, 0, this.ClientSize.Width - panelIzquierdo.Width, 0);
         }
 
         // -----------------------------------------------------------------------
@@ -672,6 +677,7 @@ namespace FACTicket_Scanner
             if (modoSimulado)
             {
                 lblEstado.Text = "📂  Cargar imagen desde 📂 del menú";
+                MostrarLogo();
                 return;
             }
 
@@ -741,6 +747,8 @@ namespace FACTicket_Scanner
                 () => { this.UseWaitCursor = false; btnCapturar.Enabled = true; },
                 () =>
                 {
+                    panelRevision.Visible = false;
+                    panelAjustes.Visible = true;
                     if (perteneceALote) LimpiarImagenActual();
                     else VolverALive();
 
@@ -766,8 +774,6 @@ namespace FACTicket_Scanner
             void OnCompletada(object? s, RevisionCompletadaEventArgs e)
             {
                 panelRevision.RevisionCompletada -= OnCompletada;
-                panelRevision.Visible = false;
-                panelAjustes.Visible = true;
                 tcs.TrySetResult(e.Resultado);
             }
 
@@ -1018,11 +1024,19 @@ namespace FACTicket_Scanner
 
                 await webViewAlbum.EnsureCoreWebView2Async();
                 webViewAlbum.CoreWebView2.Navigate(new Uri(rutaHtml).AbsoluteUri);
+                webViewAlbum.CoreWebView2.WebMessageReceived -= WebViewAlbum_WebMessageReceived;
+                webViewAlbum.CoreWebView2.WebMessageReceived += WebViewAlbum_WebMessageReceived;
                 panelIzquierdo.Visible = false;
                 panelDerecho.Visible = false;
                 panelVisor.Visible = true;
                 panelVisor.BringToFront();
                 btnCerrarVisor.Visible = true;
+
+                string htmlTexto = File.ReadAllText(rutaHtml);
+                var m = System.Text.RegularExpressions.Regex.Match(htmlTexto, "const generado=\"([^\"]+)\"");
+                lblEstadoVisor.Text = m.Success
+                    ? $"📊 Panel de Facturas - Actualizado {m.Groups[1].Value}"
+                    : "📊 Panel de Facturas";
             }
             catch (Exception ex)
             {
@@ -1039,6 +1053,83 @@ namespace FACTicket_Scanner
             panelIzquierdo.Visible = true;
             panelDerecho.Visible = true;
             btnCerrarVisor.Visible = false;
+        }
+
+        // -----------------------------------------------------------------------
+        // Visor web: recibe qué factura está abierta en el modal (postMessage
+        // desde HtmlBuilder.cs -> abrirModal). Guarda ruta de imagen/json para
+        // que los botones nativos (◀ ▶ ✏️) sepan sobre qué factura actuar.
+        // -----------------------------------------------------------------------
+        private string? rutaImagenVisorActual;
+        private string? rutaJsonVisorActual;
+
+        private void WebViewAlbum_WebMessageReceived(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs e)
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(e.WebMessageAsJson);
+                var root = doc.RootElement;
+                rutaImagenVisorActual = root.TryGetProperty("imagen", out var im) ? im.GetString() : null;
+                rutaJsonVisorActual = root.TryGetProperty("json", out var js) ? js.GetString() : null;
+            }
+            catch (Exception ex)
+            {
+                Log("WebMessage visor: error al leer datos - " + ex.Message);
+            }
+        }
+
+        private async void btnAnteriorVisor_Click(object? sender, EventArgs e)
+        {
+            try { await webViewAlbum.CoreWebView2.ExecuteScriptAsync("navModal(-1)"); } catch { }
+        }
+
+        private async void btnSiguienteVisor_Click(object? sender, EventArgs e)
+        {
+            try { await webViewAlbum.CoreWebView2.ExecuteScriptAsync("navModal(1)"); } catch { }
+        }
+
+        // -----------------------------------------------------------------------
+        // Visor web: botón ✏️ -> reprocesa la imagen de la factura abierta con
+        // Gemini y sobrescribe su JSON, para corregir datos mal extraídos.
+        // -----------------------------------------------------------------------
+        private async void btnEditarVisor_Click(object? sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(rutaImagenVisorActual) || string.IsNullOrEmpty(rutaJsonVisorActual))
+            {
+                MessageBox.Show("No hay ninguna factura abierta en el visor.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string rutaImagenAbs = Path.Combine(Application.StartupPath, NombreCarpeta, rutaImagenVisorActual);
+            string rutaJsonAbs = Path.Combine(Application.StartupPath, NombreCarpeta, rutaJsonVisorActual);
+
+            if (!File.Exists(rutaImagenAbs) || !File.Exists(rutaJsonAbs))
+            {
+                MessageBox.Show("No se encontró la imagen o el JSON de esta factura.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            var confirmar = MessageBox.Show(
+                "¿Reprocesar esta factura con Gemini? Se sobrescribirán sus datos actuales.",
+                "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirmar != DialogResult.Yes) return;
+
+            try
+            {
+                using var mat = OpenCvSharp.Cv2.ImRead(rutaImagenAbs);
+                DatosTicket nuevosDatos = await GeminiAPI.ExtraerDatosFactura(mat);
+
+                var opciones = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+                File.WriteAllText(rutaJsonAbs, System.Text.Json.JsonSerializer.Serialize(nuevosDatos, opciones));
+
+                await webViewAlbum.CoreWebView2.ExecuteScriptAsync(
+                    $"location.reload()"); // recarga el visor para reflejar el JSON actualizado
+                Log("Factura reprocesada desde el visor: " + rutaJsonVisorActual);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al reprocesar con Gemini:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         // -----------------------------------------------------------------------

@@ -39,9 +39,13 @@ namespace FACTicket_Scanner
             this.aPIToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editarClavesAPIToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.ayudaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.separadorMenuToolbarToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
             this.aboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.logToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.btnCerrarVisor = new System.Windows.Forms.ToolStripButton();
+            this.btnCerrarVisor = new System.Windows.Forms.Button();
+            this.panelBarraVisor = new System.Windows.Forms.Panel();
+            this.lblEstadoVisor = new System.Windows.Forms.Label();
+            this.lblEventosVisor = new System.Windows.Forms.Label();
             this.btnReconectarRapido = new System.Windows.Forms.ToolStripButton();
             this.btnBuscarCamara = new System.Windows.Forms.ToolStripButton();
             this.cmbResultadoCamara = new System.Windows.Forms.ToolStripComboBox();
@@ -79,18 +83,18 @@ namespace FACTicket_Scanner
             this.utilidadesToolStripMenuItem,
             this.aPIToolStripMenuItem,
             this.ayudaToolStripMenuItem,
-            this.btnCerrarVisor,
-            this.btnReconectarRapido,
-            this.btnBuscarCamara,
-            this.cmbResultadoCamara,
-            this.txtUrlCamara,
-            this.cmbTipoCamara,
-            this.separadorToolbarToolStripMenuItem,
-            this.btnVisorRapido,
-            this.btnCarpetaRapida,
-            this.separadorToolbar2ToolStripMenuItem,
+            this.separadorMenuToolbarToolStripMenuItem,
+            this.btnAbrirRapido,
             this.btnGuardarRapido,
-            this.btnAbrirRapido});
+            this.separadorToolbar2ToolStripMenuItem,
+            this.btnCarpetaRapida,
+            this.btnVisorRapido,
+            this.separadorToolbarToolStripMenuItem,
+            this.cmbTipoCamara,
+            this.txtUrlCamara,
+            this.cmbResultadoCamara,
+            this.btnBuscarCamara,
+            this.btnReconectarRapido});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
             this.menuStrip1.ShowItemToolTips = true;
@@ -268,23 +272,55 @@ namespace FACTicket_Scanner
             this.logToolStripMenuItem.Text = "🐛  Ver log de depuración";
             this.logToolStripMenuItem.Click += new System.EventHandler(this.logToolStripMenuItem_Click);
             // 
+            this.separadorMenuToolbarToolStripMenuItem.AutoSize = false;
+            this.separadorMenuToolbarToolStripMenuItem.Width = 76;
+            // 
             // btnCerrarVisor
             // 
-            this.btnCerrarVisor.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.btnCerrarVisor.BackColor = System.Drawing.Color.Firebrick;
-            this.btnCerrarVisor.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
+            this.btnCerrarVisor.Dock = System.Windows.Forms.DockStyle.Right;
+            this.btnCerrarVisor.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnCerrarVisor.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
             this.btnCerrarVisor.ForeColor = System.Drawing.Color.White;
             this.btnCerrarVisor.Name = "btnCerrarVisor";
-            this.btnCerrarVisor.Size = new System.Drawing.Size(25, 23);
+            this.btnCerrarVisor.Size = new System.Drawing.Size(40, 30);
             this.btnCerrarVisor.Text = "✕";
-            this.btnCerrarVisor.ToolTipText = "Cerrar visor web";
-            this.btnCerrarVisor.Visible = false;
+            this.btnCerrarVisor.UseVisualStyleBackColor = false;
             this.btnCerrarVisor.Click += new System.EventHandler(this.btnCerrarVisor_Click);
+            // 
+            // panelBarraVisor
+            // 
+            this.panelBarraVisor.BackColor = System.Drawing.Color.FromArgb(26, 115, 232);
+            this.panelBarraVisor.Controls.Add(this.lblEventosVisor);
+            this.panelBarraVisor.Controls.Add(this.lblEstadoVisor);
+            this.panelBarraVisor.Controls.Add(this.btnCerrarVisor);
+            this.panelBarraVisor.Dock = System.Windows.Forms.DockStyle.Top;
+            this.panelBarraVisor.Name = "panelBarraVisor";
+            this.panelBarraVisor.Size = new System.Drawing.Size(1280, 38);
+            this.panelBarraVisor.TabIndex = 0;
+            // 
+            // lblEstadoVisor
+            // 
+            this.lblEstadoVisor.AutoSize = true;
+            this.lblEstadoVisor.Dock = System.Windows.Forms.DockStyle.Left;
+            this.lblEstadoVisor.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
+            this.lblEstadoVisor.ForeColor = System.Drawing.Color.White;
+            this.lblEstadoVisor.Name = "lblEstadoVisor";
+            this.lblEstadoVisor.Padding = new System.Windows.Forms.Padding(10, 9, 8, 0);
+            this.lblEstadoVisor.Text = "📊 Panel de Facturas";
+            // 
+            // lblEventosVisor
+            // 
+            this.lblEventosVisor.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.lblEventosVisor.Font = new System.Drawing.Font("Segoe UI", 10F);
+            this.lblEventosVisor.ForeColor = System.Drawing.Color.White;
+            this.lblEventosVisor.Name = "lblEventosVisor";
+            this.lblEventosVisor.Padding = new System.Windows.Forms.Padding(0, 9, 0, 0);
+            this.lblEventosVisor.Text = "";
+            this.lblEventosVisor.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // btnReconectarRapido
             // 
-            this.btnReconectarRapido.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.btnReconectarRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
             this.btnReconectarRapido.Name = "btnReconectarRapido";
             this.btnReconectarRapido.Size = new System.Drawing.Size(23, 23);
@@ -294,7 +330,6 @@ namespace FACTicket_Scanner
             // 
             // btnBuscarCamara
             // 
-            this.btnBuscarCamara.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.btnBuscarCamara.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
             this.btnBuscarCamara.Name = "btnBuscarCamara";
             this.btnBuscarCamara.Size = new System.Drawing.Size(23, 23);
@@ -304,7 +339,6 @@ namespace FACTicket_Scanner
             // 
             // cmbResultadoCamara
             // 
-            this.cmbResultadoCamara.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.cmbResultadoCamara.AutoSize = false;
             this.cmbResultadoCamara.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cmbResultadoCamara.Name = "cmbResultadoCamara";
@@ -314,7 +348,6 @@ namespace FACTicket_Scanner
             // 
             // txtUrlCamara
             // 
-            this.txtUrlCamara.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.txtUrlCamara.AutoSize = false;
             this.txtUrlCamara.Name = "txtUrlCamara";
             this.txtUrlCamara.ReadOnly = true;
@@ -323,7 +356,6 @@ namespace FACTicket_Scanner
             // 
             // cmbTipoCamara
             // 
-            this.cmbTipoCamara.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.cmbTipoCamara.AutoSize = false;
             this.cmbTipoCamara.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cmbTipoCamara.Name = "cmbTipoCamara";
@@ -333,13 +365,11 @@ namespace FACTicket_Scanner
             // 
             // separadorToolbarToolStripMenuItem
             // 
-            this.separadorToolbarToolStripMenuItem.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.separadorToolbarToolStripMenuItem.Name = "separadorToolbarToolStripMenuItem";
             this.separadorToolbarToolStripMenuItem.Size = new System.Drawing.Size(6, 26);
             // 
             // btnVisorRapido
             // 
-            this.btnVisorRapido.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.btnVisorRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
             this.btnVisorRapido.Name = "btnVisorRapido";
             this.btnVisorRapido.Size = new System.Drawing.Size(23, 23);
@@ -349,7 +379,6 @@ namespace FACTicket_Scanner
             // 
             // btnCarpetaRapida
             // 
-            this.btnCarpetaRapida.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.btnCarpetaRapida.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
             this.btnCarpetaRapida.Name = "btnCarpetaRapida";
             this.btnCarpetaRapida.Size = new System.Drawing.Size(23, 23);
@@ -359,13 +388,11 @@ namespace FACTicket_Scanner
             // 
             // separadorToolbar2ToolStripMenuItem
             // 
-            this.separadorToolbar2ToolStripMenuItem.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.separadorToolbar2ToolStripMenuItem.Name = "separadorToolbar2ToolStripMenuItem";
             this.separadorToolbar2ToolStripMenuItem.Size = new System.Drawing.Size(6, 26);
             // 
             // btnGuardarRapido
             // 
-            this.btnGuardarRapido.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.btnGuardarRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
             this.btnGuardarRapido.Name = "btnGuardarRapido";
             this.btnGuardarRapido.Size = new System.Drawing.Size(23, 23);
@@ -375,7 +402,6 @@ namespace FACTicket_Scanner
             // 
             // btnAbrirRapido
             // 
-            this.btnAbrirRapido.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
             this.btnAbrirRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
             this.btnAbrirRapido.Name = "btnAbrirRapido";
             this.btnAbrirRapido.Size = new System.Drawing.Size(23, 23);
@@ -438,6 +464,7 @@ namespace FACTicket_Scanner
             // panelVisor
             // 
             this.panelVisor.Controls.Add(this.webViewAlbum);
+            this.panelVisor.Controls.Add(this.panelBarraVisor);
             this.panelVisor.Dock = System.Windows.Forms.DockStyle.Fill;
             this.panelVisor.Location = new System.Drawing.Point(0, 30);
             this.panelVisor.Name = "panelVisor";
@@ -499,6 +526,7 @@ namespace FACTicket_Scanner
         private System.Windows.Forms.ToolStripMenuItem visorToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem carpetaToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem ayudaToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator separadorMenuToolbarToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem aboutToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem logToolStripMenuItem;
         private System.Windows.Forms.Panel panelIzquierdo;
@@ -519,7 +547,10 @@ namespace FACTicket_Scanner
         private System.Windows.Forms.ToolStripSeparator separadorToolbar2ToolStripMenuItem;
         private System.Windows.Forms.ToolStripButton btnGuardarRapido;
         private System.Windows.Forms.ToolStripButton btnAbrirRapido;
-        private System.Windows.Forms.ToolStripButton btnCerrarVisor;
+        private System.Windows.Forms.Panel panelBarraVisor;
+        private System.Windows.Forms.Label lblEstadoVisor;
+        private System.Windows.Forms.Label lblEventosVisor;
+        private System.Windows.Forms.Button btnCerrarVisor;
         private System.Windows.Forms.ToolStripMenuItem aPIToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem editarClavesAPIToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem utilidadesToolStripMenuItem;

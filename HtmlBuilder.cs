@@ -35,10 +35,6 @@ namespace FACTicket_Scanner
        PANEL IZQUIERDO — estadísticas fijas
   ═══════════════════════════════════════════════════════════ -->
   <aside id=""panel-izq"">
-    <div id=""panel-header"">
-      <div id=""panel-title"">📊 Panel de Facturas</div>
-      <div id=""panel-gen""></div>
-    </div>
 
     <!-- Estadísticas -->
     <div class=""bloque"">
@@ -51,7 +47,7 @@ namespace FACTicket_Scanner
       <div class=""bloque-titulo"" style=""display:flex;justify-content:space-between;align-items:center"">
         <span>Gasto trimestral</span>
         <div style=""display:flex;gap:4px"">
-          <select id=""anioSel"" onchange=""dibujarGrafico();filtrarTrimestre()""></select>
+          <select id=""anioSel"" onchange=""sincronizarAnio(this.value);dibujarGrafico();filtrarTrimestre()""></select>
           <select id=""trimSel"" onchange=""filtrarTrimestre()"">
             <option value="""">Año completo</option>
             <option value=""1"">T1 (Ene-Mar)</option>
@@ -99,7 +95,7 @@ namespace FACTicket_Scanner
         </div>
         <div class=""ctrl-grupo"">
           <label>Año</label>
-          <select id=""filtroAnio"" onchange=""filtrar()""><option value="""">Todos</option></select>
+          <select id=""filtroAnio"" onchange=""sincronizarAnio(this.value,true);filtrar()""><option value="""">Todos</option></select>
         </div>
         <div class=""ctrl-grupo"">
           <label>Empresa</label>
@@ -268,6 +264,9 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
   box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);
 }
 .img-wrap{position:relative;}
+.lineas-txt{position:relative;height:110px;padding:6px 8px;background:#f8f9fa;
+  overflow:hidden;display:flex;align-items:flex-start;}
+.lineas-desc{font-size:.72em;color:#444;line-height:1.3;}
 .badge-lineas{
   position:absolute;top:4px;right:4px;z-index:1;
   background:rgba(0,0,0,.55);color:#fff;font-size:.68em;
@@ -358,29 +357,49 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
   font-size:.78em;line-height:1.5;background:#1e1e1e;color:#d4d4d4;
   white-space:pre-wrap;word-break:break-all;
 }
-.fila{display:flex;justify-content:space-between;font-size:.83em;
-  padding:5px 0;border-bottom:1px solid #f0f0f0;}
-.fila .e{color:#888;flex-shrink:0;margin-right:8px;}
-.fila .v{font-weight:500;text-align:right;word-break:break-word;}
-.seccion{font-size:.7em;font-weight:700;color:var(--azul);
-  margin:12px 0 4px;text-transform:uppercase;letter-spacing:.05em;}
-table.items{width:100%;border-collapse:collapse;font-size:.78em;margin-top:6px;}
-table.items th{background:#f5f5f5;padding:4px 8px;text-align:left;font-weight:600;}
-table.items td{padding:4px 8px;border-bottom:1px solid #f0f0f0;}
+.fila{display:flex;justify-content:space-between;font-size:.85em;
+  padding:6px 4px;border-bottom:1px solid #f2f2f2;}
+.fila .e{color:#888;flex-shrink:0;margin-right:10px;}
+.fila .v{font-weight:600;text-align:right;word-break:break-word;color:#1a1a1a;}
+.seccion{font-size:.72em;font-weight:700;color:#fff;background:var(--azul);
+  margin:14px 0 6px;padding:4px 10px;border-radius:6px;
+  text-transform:uppercase;letter-spacing:.05em;display:inline-block;}
+table.items{width:100%;border-collapse:collapse;font-size:.78em;margin-top:6px;
+  border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px #eee;}
+table.items th{background:#f5f5f5;padding:6px 8px;text-align:left;font-weight:600;color:#555;}
+table.items td{padding:6px 8px;border-bottom:1px solid #f0f0f0;}
+table.items tr:hover td{background:#f8f9fa;}
+.btn-hist{border:none;background:var(--azul-s);color:var(--azul);
+  font-size:.75em;padding:2px 7px;border-radius:10px;cursor:pointer;}
+.btn-hist:hover{background:#d2e3fc;}
+.fila-historico td{background:#fafbfc;padding:10px !important;}
+.hist-panel{display:flex;gap:12px;align-items:flex-start;}
+.hist-canvas{flex-shrink:0;background:#fff;border-radius:6px;box-shadow:0 0 0 1px #eee;}
+.hist-lista{flex:1;display:flex;flex-direction:column;gap:3px;max-height:90px;overflow-y:auto;}
+.hist-item{display:flex;justify-content:space-between;gap:8px;font-size:.76em;
+  padding:3px 6px;border-radius:4px;cursor:pointer;}
+.hist-item:hover{background:var(--azul-s);color:var(--azul);}
 ";
 
         private static string Js() => @"
-const num = v => parseFloat((v||'0').toString().replace(',','.')) || 0;
+const num = v => {
+  let s=(v||'0').toString().trim();
+  if(s.includes(',') && s.includes('.')) s = s.lastIndexOf(',')>s.lastIndexOf('.') ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'');
+  else if(s.includes(',')) s = s.replace(',','.');
+  return parseFloat(s) || 0;
+};
 const eur = v => '€ ' + v.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});
 function isoFecha(t){ return (t.fecha||t.fecha_guardado||''); }
 // Reconoce yyyy-MM-dd, yyyy/MM/dd, dd/MM/yyyy y dd-MM-yyyy (igual que ExportarForm.ParsearFecha en C#).
 function parsearFechaFlexible(str){
   if(!str) return null;
   str=str.trim();
-  let m=str.match(/^(\d{4})[-\/](\d{2})[-\/]\d{2}/);
+  let m=str.match(/^(\d{4})[-\/.](\d{2})[-\/.]\d{2}/);
   if(m) return {anio:m[1], mes:parseInt(m[2],10)};
-  m=str.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})/);
+  m=str.match(/^(\d{2})[-\/.](\d{2})[-\/.](\d{4})/);
   if(m) return {anio:m[3], mes:parseInt(m[2],10)};
+  m=str.match(/^(\d{2})[-\/.](\d{2})[-\/.](\d{2})$/);
+  if(m) return {anio:'20'+m[3], mes:parseInt(m[2],10)};
   return null;
 }
 function anioFecha(t){ const f=parsearFechaFlexible(isoFecha(t)); return f?f.anio:''; }
@@ -415,26 +434,30 @@ function poblarFiltros(){
 function renderStats(lista){
   const total = lista.reduce((s,t)=>s+num(t.total),0);
   const empresas = new Set(lista.map(empresaCarpeta).filter(Boolean));
-  const media = lista.length ? total/lista.length : 0;
   const sinTotal = lista.filter(t=>!t.total||num(t.total)===0).length;
-  let top=null; lista.forEach(t=>{ if(!top||num(t.total)>num(top.total)) top=t; });
+  const sinFecha = lista.filter(t=>mesFecha(t)===0).length; // no aparecen en gráficos trimestrales
   const rows = [
     ['Gasto total', eur(total), 'azul'],
     ['Documentos', lista.length, ''],
     ['Empresas', empresas.size, ''],
-    ['Importe medio', eur(media), 'verde'],
     ['Sin importe', sinTotal, sinTotal>0?'rojo':''],
-    ['Mayor gasto', top ? eur(num(top.total)) : '—', 'verde'],
+    ['Sin fecha (excl. gráficos)', sinFecha, sinFecha>0?'naranja':''],
   ];
   document.getElementById('stats').innerHTML = rows.map(([l,v,c])=>
     `<div class=""stat-row ${c}""><span class=""lbl"">${l}</span><span class=""val"">${v}</span></div>`
   ).join('');
-  document.getElementById('panel-gen').textContent = 'Actualizado '+generado;
 }
 
 /* ─── Gráfico trimestral (canvas) ─── */
 function aniosDisponibles(){
   return [...new Set(tickets.map(anioFecha).filter(Boolean))].sort();
+}
+// Mantiene alineados los dos selectores de año (izq. anioSel / der. filtroAnio)
+// para que ""Resumen"" y los gráficos siempre muestren el mismo año.
+function sincronizarAnio(valor, desdeDerecho){
+  if(!valor) return; // filtroAnio vacío (Todos) no tiene equivalente en anioSel
+  if(desdeDerecho) document.getElementById('anioSel').value = valor;
+  else document.getElementById('filtroAnio').value = valor;
 }
 function poblarSelectorAnios(){
   const anios = aniosDisponibles();
@@ -626,9 +649,10 @@ function tarjetaHtml(t){
   const badge=tieneTotal?`<span class=""badge"">${eur(num(t.total))}</span>`:`<span class=""badge vacio"">Sin total</span>`;
   const nLineas=(t.items||[]).length;
   const badgeLineas=nLineas>0?`<span class=""badge-lineas"">${nLineas} línea${nLineas===1?'':'s'}</span>`:'';
-  const img=t.imagen
-    ?`<div class=""img-wrap"">${badgeLineas}<img src=""${t.imagen}"" loading=""lazy"" onerror=""this.outerHTML='<div class=ph>Sin imagen</div>'""/></div>`
-    :`<div class=""ph"">Sin imagen</div>`;
+  const lineasTexto=(t.items||[]).map(i=>i.descripcion).filter(Boolean).join(' · ');
+  const img=lineasTexto
+    ?`<div class=""lineas-txt"">${badgeLineas}<span class=""lineas-desc"">${lineasTexto}</span></div>`
+    :`<div class=""ph"">Sin líneas</div>`;
   return `<div class=""tarjeta"" onclick=""abrirModal(${idx})"">
     ${img}
     <div class=""resumen"">
@@ -669,9 +693,81 @@ function setTab(tab, btn){
   document.getElementById('tab-json').style.display  = tab==='json'?'':'none';
 }
 
+function claveOrden(fecha){
+  const f=parsearFechaFlexible(fecha);
+  return f ? f.anio*100+f.mes : -1;
+}
+function coincidenciasArticulo(desc, idxActual){
+  const d=(desc||'').trim().toLowerCase(); if(!d) return [];
+  const out=[];
+  tickets.forEach((t,i)=>{
+    if(i===idxActual) return;
+    (t.items||[]).forEach(it=>{
+      if((it.descripcion||'').trim().toLowerCase()===d){
+        out.push({idx:i, fecha:t.fecha||'—', empresa:empresaCarpeta(t), precio:num(it.precio_unitario)});
+      }
+    });
+  });
+  return out.sort((a,b)=>claveOrden(a.fecha)-claveOrden(b.fecha));
+}
+function toggleHistorico(uid){
+  const fila=document.getElementById(uid);
+  const visible=fila.style.display!=='none';
+  fila.style.display=visible?'none':'';
+  if(visible || fila.dataset.render) return;
+  fila.dataset.render='1';
+  const data=window._histData[uid];
+  const celda=fila.querySelector('td');
+  celda.innerHTML=`<div class=""hist-panel"">
+    <canvas class=""hist-canvas"" width=""260"" height=""70""></canvas>
+    <div class=""hist-lista"">${data.map(d=>`<div class=""hist-item"" onclick=""cerrarModal();setTimeout(()=>abrirModal(${d.idx}),50)"">
+      <span>${d.fecha}</span><span>${d.empresa}</span><span>${eur(d.precio)}</span>
+    </div>`).join('')}</div>
+  </div>`;
+  dibujarHistorico(celda.querySelector('canvas'), data);
+}
+function dibujarHistorico(cv, data){
+  const ctx=cv.getContext('2d'); if(!ctx||!data.length) return;
+  const w=cv.width, h=cv.height, pad=8;
+  const precios=data.map(d=>d.precio);
+  const max=Math.max(...precios,0.01), min=Math.min(...precios,0);
+  const rango=(max-min)||1;
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle='#1a73e8'; ctx.lineWidth=2; ctx.beginPath();
+  data.forEach((d,i)=>{
+    const x=pad+(i/(Math.max(data.length-1,1)))*(w-pad*2);
+    const y=h-pad-((d.precio-min)/rango)*(h-pad*2);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  ctx.fillStyle='#1a73e8';
+  data.forEach((d,i)=>{
+    const x=pad+(i/(Math.max(data.length-1,1)))*(w-pad*2);
+    const y=h-pad-((d.precio-min)/rango)*(h-pad*2);
+    ctx.beginPath(); ctx.arc(x,y,2.5,0,7); ctx.fill();
+  });
+}
+window._histData={};
+
 function abrirModal(idx){
   idxModal=idx;
-  const t=tickets[idx];
+  renderModal(tickets[idx], idx);
+  // Avisa a WinForms (panelBarraVisor) qué factura está abierta, para que
+  // los botones nativos ◀ ▶ ✏️ sepan sobre qué imagen/json actuar.
+  if(window.chrome && window.chrome.webview){
+    window.chrome.webview.postMessage({imagen: tickets[idx].imagen||'', json: tickets[idx].json||''});
+  }
+  // Relee el JSON real del disco por si se editó fuera de la app; si falla
+  // (bloqueo file://, borrado, etc.) se queda con los datos ya cacheados.
+  const ruta=tickets[idx].json;
+  if(ruta){
+    fetch(ruta).then(r=>r.json()).then(actual=>{
+      if(idxModal===idx){ tickets[idx]=Object.assign({}, tickets[idx], actual); renderModal(tickets[idx], idx); }
+    }).catch(()=>{});
+  }
+}
+
+function renderModal(t, idx){
   document.getElementById('modal-titulo').textContent=(t.empresa||'(sin empresa)')+' · '+(t.fecha||'—');
   const foto=document.getElementById('modal-foto');
   const sinImg=document.getElementById('modal-sin-img');
@@ -693,8 +789,17 @@ function abrirModal(idx){
   html+=fi('Total',t.total?eur(num(t.total)):''); html+=fi('Método de pago',t.metodo_pago);
   if(t.items&&t.items.length){
     html+=sec('Líneas ('+t.items.length+')');
-    html+='<table class=""items""><thead><tr><th>Descripción</th><th>Cant.</th><th>P.Unit.</th><th>Subtotal</th></tr></thead><tbody>';
-    html+=t.items.map(i=>`<tr><td>${i.descripcion}</td><td>${i.cantidad}</td><td>${i.precio_unitario}</td><td>${i.subtotal}</td></tr>`).join('');
+    html+='<table class=""items""><thead><tr><th>Descripción</th><th>Cant.</th><th>P.Unit.</th><th>Subtotal</th><th></th></tr></thead><tbody>';
+    t.items.forEach((i,ii)=>{
+      const coincidencias=coincidenciasArticulo(i.descripcion, idx);
+      const uid='hist-'+idx+'-'+ii;
+      window._histData[uid]=coincidencias;
+      const btn=coincidencias.length
+        ?`<button class=""btn-hist"" onclick=""toggleHistorico('${uid}')"" title=""Ver histórico de precio"">📈 ${coincidencias.length}</button>`
+        :'';
+      html+=`<tr><td>${i.descripcion}</td><td>${i.cantidad}</td><td>${i.precio_unitario}</td><td>${i.subtotal}</td><td>${btn}</td></tr>`;
+      html+=`<tr class=""fila-historico"" id=""${uid}"" style=""display:none""><td colspan=""5""></td></tr>`;
+    });
     html+='</tbody></table>';
   }
   html+=fi('Guardado',t.fecha_guardado);
@@ -730,12 +835,6 @@ function navModal(dir){
 // Abre la imagen original en una pestaña nueva para poder editarla. Un
 // navegador no puede lanzar un editor externo directamente: desde ahí el
 // usuario puede usar ""Guardar como"" o ""Abrir con"" de su sistema.
-function editarFoto(){
-  const t=tickets[idxModal];
-  if(!t.imagen){ return; }
-  window.open(t.imagen, '_blank');
-}
-
 function cerrarModal(){ document.getElementById('modal').classList.remove('activo'); }
 document.getElementById('modal').addEventListener('click',function(e){ if(e.target===this) cerrarModal(); });
 document.addEventListener('keydown',function(e){
