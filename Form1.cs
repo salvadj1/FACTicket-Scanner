@@ -12,6 +12,8 @@ namespace FACTicket_Scanner
 {
     public partial class Form1 : Form
     {
+        public  const int Timeout_Dialogos = 10;
+        private const string Version = " - 1.38 beta";
         // -----------------------------------------------------------------------
         // Dependencias
         // -----------------------------------------------------------------------
@@ -50,43 +52,17 @@ namespace FACTicket_Scanner
 
         // --- Controles del panel derecho (siempre visibles) ---
         private Button btnCapturar = null!;
-        private Button btnGuardar = null!;
         private Button btnRepetir = null!;
         private Button btnRotar = null!;
         private Button btnSalirLote = null!;
         private Label lblProgresoLote = null!;
-        private CheckBox chkGuardarOriginal = null!;
-        private CheckBox chkGuardarJpg = null!;
-        private CheckBox chkGuardarPdf = null!;
-        private CheckBox chkExtraerGemini = null!;
+        private PanelAjustesEscaneo panelAjustes = null!;
+        private PanelRevisionTicket panelRevision = null!;
+        private PanelGuardarFactura panelGuardar = null!;
 
-        private TrackBar trkBlock = null!;
-        private TrackBar trkC = null!;
-        private TrackBar trkContraste = null!;
-        private TrackBar trkBrillo = null!;
-        private TrackBar trkRuido = null!;
-        private TrackBar trkNitidez = null!;
-        private TrackBar trkGrueso = null!;
-        private TrackBar trkUmbral = null!;
-        private TrackBar trkMargen = null!;
-        private TrackBar trkMargenSup = null!;
-        private TrackBar trkMargenInf = null!;
-        private TrackBar trkMargenIzq = null!;
-        private TrackBar trkMargenDer = null!;
-
-        private Label valBlock = null!;
-        private Label valC = null!;
-        private Label valContraste = null!;
-        private Label valBrillo = null!;
-        private Label valRuido = null!;
-        private Label valNitidez = null!;
-        private Label valGrueso = null!;
-        private Label valUmbral = null!;
-        private Label valMargen = null!;
-        private Label valMargenSup = null!;
-        private Label valMargenInf = null!;
-        private Label valMargenIzq = null!;
-        private Label valMargenDer = null!;
+        // --- Autoguardado en lote: cuenta atrás de 5s si no se toca nada ---
+        private System.Windows.Forms.Timer? timerAutoGuardarLote;
+        private int segundosAutoGuardarLote;
 
         private Label lblEstado = null!;
 
@@ -200,7 +176,7 @@ namespace FACTicket_Scanner
         public Form1()
         {
             InitializeComponent();
-            this.Text = "FACTicket Scanner - 1.067 beta";
+            this.Text = "FACTicket Scanner" + Version;
             this.Icon = new System.Drawing.Icon("icono.ico");
             this.WindowState = FormWindowState.Maximized;
             this.MinimumSize = new System.Drawing.Size(800, 600);
@@ -223,6 +199,7 @@ namespace FACTicket_Scanner
             {
                 panelIzquierdo.Width = this.ClientSize.Width * 55 / 100;
                 txtUrlCamara.Text = ajustes.UltimaUrlCamaraIp;
+                ConstruirPanelIzquierdoLote();
                 ConstruirPanelDerecho();
                 album.RegenerarAlbumInicial();
                 MostrarLogo();
@@ -358,7 +335,7 @@ namespace FACTicket_Scanner
 
             pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
 
-            var (baseW, baseH) = CalcularTamanoAjustado(pictureBox1.Image.Size, panelIzquierdo.ClientSize);
+            var (baseW, baseH) = CalcularTamanoAjustado(pictureBox1.Image.Size, pictureBox1.Size);
             int w = (int)(baseW * zoomFactor);
             int h = (int)(baseH * zoomFactor);
 
@@ -386,6 +363,93 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
+        // Autoguardado en lote: si tras cargar una imagen del lote no se toca
+        // nada (sliders, checkboxes, rotar, repetir) durante 5s, se pulsa
+        // Guardar automáticamente. El botón muestra la cuenta atrás.
+        // -----------------------------------------------------------------------
+        private void IniciarAutoGuardadoLote()
+        {
+            CancelarAutoGuardadoLote();
+            if (colaArchivos.Count <= 1) return; // solo en lote real (>1 imagen)
+
+            segundosAutoGuardarLote = 5;
+            ActualizarTextoAutoGuardado();
+
+            timerAutoGuardarLote = new System.Windows.Forms.Timer { Interval = 1000 };
+            timerAutoGuardarLote.Tick += (s, e) =>
+            {
+                segundosAutoGuardarLote--;
+                if (segundosAutoGuardarLote <= 0)
+                {
+                    CancelarAutoGuardadoLote();
+                    if (panelGuardar.btnGuardar.Enabled) panelGuardar.btnGuardar.PerformClick();
+                    return;
+                }
+                ActualizarTextoAutoGuardado();
+            };
+            timerAutoGuardarLote.Start();
+        }
+
+        private void ActualizarTextoAutoGuardado()
+        {
+            panelGuardar.btnGuardar.Text = $"💾  Guardar (auto en {segundosAutoGuardarLote}s)";
+        }
+
+        private void CancelarAutoGuardadoLote()
+        {
+            if (timerAutoGuardarLote == null) return;
+            timerAutoGuardarLote.Stop();
+            timerAutoGuardarLote.Dispose();
+            timerAutoGuardarLote = null;
+            panelGuardar.btnGuardar.Text = "💾  Guardar";
+        }
+
+        // -----------------------------------------------------------------------
+        // Grupo "Imagen X/Y" + "Salir del lote", anclado abajo a la derecha
+        // de panelIzquierdo (encima de él vive pictureBox1). Ambos controles
+        // usan Anchor=Right para mantenerse pegados al borde derecho aunque
+        // panelIzquierdo cambie de ancho.
+        // -----------------------------------------------------------------------
+        private void ConstruirPanelIzquierdoLote()
+        {
+            var panelLote = new Panel { Dock = DockStyle.Bottom, Height = 36 };
+            panelIzquierdo.Controls.Add(panelLote);
+
+            const int wBtn = 150, wLbl = 110, margen = 8;
+
+            btnSalirLote = new Button
+            {
+                Text = "✖  Salir del lote",
+                Width = wBtn,
+                Height = 28,
+                Top = 4,
+                Left = panelLote.ClientSize.Width - wBtn - margen,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Visible = false,
+                BackColor = System.Drawing.Color.IndianRed,
+                ForeColor = System.Drawing.Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnSalirLote.Click += BtnSalirLote_Click;
+            panelLote.Controls.Add(btnSalirLote);
+
+            lblProgresoLote = new Label
+            {
+                Text = "",
+                Width = wLbl,
+                Height = 28,
+                Top = 4,
+                Left = btnSalirLote.Left - wLbl - margen,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                TextAlign = System.Drawing.ContentAlignment.MiddleRight,
+                Font = new System.Drawing.Font(Font.FontFamily, 9, System.Drawing.FontStyle.Bold),
+                ForeColor = System.Drawing.Color.SteelBlue,
+                Visible = false
+            };
+            panelLote.Controls.Add(lblProgresoLote);
+        }
+
+        // -----------------------------------------------------------------------
         // Construye los controles del panel derecho:
         //   panelScrollable → sliders (con scroll)
         //   panelBotones    → botones + estado (fijo abajo)
@@ -398,60 +462,22 @@ namespace FACTicket_Scanner
             int wTotal = panelScrollable.ClientSize.Width - 16;
             if (wTotal < 200) wTotal = 200;
 
-            // ── SLIDERS (panelScrollable) ────────────────────────────────────
-            int y = 8;
+            // ── AJUSTES (panelScrollable) ────────────────────────────────────
+            // Sliders y revisión de ticket viven en UserControls propios,
+            // apilados en el mismo hueco: panelAjustes se ve desde el arranque
+            // (antes de cargar ninguna imagen); panelRevision se muestra en su
+            // lugar solo mientras se revisan los datos extraídos por Gemini.
+            panelAjustes = new PanelAjustesEscaneo { Dock = DockStyle.Fill };
+            panelAjustes.ValorCambiado += (s, e) => { CancelarAutoGuardadoLote(); if (modoCaptura) Reprocesar(); };
+            panelScrollable.Controls.Add(panelAjustes);
 
-            (trkBlock, valBlock) = Slider("Detalle:", y, 1, 40, 25, 2); y += 34;
-            (trkC, valC) = Slider("Brillo/C:", y, -20, 20, 10, 4); y += 34;
-            (trkContraste, valContraste) = Slider("CLAHE (clipLimit):", y, 0, 8, 2, 1); y += 34;
-            (trkBrillo, valBrillo) = Slider("Brillo imagen:", y, -50, 50, 0, 10); y += 34;
-            (trkRuido, valRuido) = Slider("Reducir ruido:", y, 0, 4, 1, 1); y += 34;
-            (trkNitidez, valNitidez) = Slider("Nitidez (post):", y, 0, 3, 0, 1); y += 34;
-            (trkGrueso, valGrueso) = Slider("Grosor texto:", y, -3, 3, 0, 1); y += 34;
-            (trkUmbral, valUmbral) = Slider("Umbral fijo:", y, 0, 254, 0, 20); y += 34;
-            (trkMargen, valMargen) = Slider("Sensib. recorte:", y, 1, 30, 5, 5); y += 34;
-            (trkMargenSup, valMargenSup) = Slider("Margen sup. (%):", y, 0, 50, 0, 5); y += 34;
-            (trkMargenInf, valMargenInf) = Slider("Margen inf. (%):", y, 0, 50, 0, 5); y += 34;
-            (trkMargenIzq, valMargenIzq) = Slider("Margen izq. (%):", y, 0, 50, 0, 5); y += 34;
-            (trkMargenDer, valMargenDer) = Slider("Margen der. (%):", y, 0, 50, 0, 5); y += 34;
-
-            var chkEdicionManual = new CheckBox
-            {
-                Left = 0,
-                Top = y,
-                Width = wTotal,
-                AutoSize = false,
-                Height = 24,
-                Text = "Edición manual (sin recorte automático)"
-            };
-            chkEdicionManual.CheckedChanged += (s, e) => Reprocesar();
-            panelScrollable.Controls.Add(chkEdicionManual);
-            y += 30;
-
-            panelScrollable.Controls.Add(new Label
-            {
-                Left = 0,
-                Top = y,
-                Width = wTotal,
-                Height = 36,
-                AutoSize = false,
-                Text = "CLAHE/Brillo/Ruido se auto-calibran al capturar.",
-                ForeColor = System.Drawing.Color.Gray,
-                Font = new System.Drawing.Font(Font.FontFamily, 7.5f)
-            });
-
-            ActualizarEtiquetas();
-
-            // Suscribir sliders al reprocesado
-            foreach (TrackBar t in new[] { trkBlock, trkC, trkContraste, trkBrillo, trkRuido,
-                trkNitidez, trkGrueso, trkUmbral, trkMargen,
-                trkMargenSup, trkMargenInf, trkMargenIzq, trkMargenDer })
-                t.ValueChanged += (s, e) => { if (modoCaptura) Reprocesar(); };
+            panelRevision = new PanelRevisionTicket { Dock = DockStyle.Fill, Visible = false };
+            panelScrollable.Controls.Add(panelRevision);
+            panelRevision.BringToFront();
 
             // ── BOTONES (panelBotones, fijo abajo) ──────────────────────────
             int wP = panelBotones.ClientSize.Width - 16;
             if (wP < 200) wP = 200;
-            int wBtn3 = (wP - 16) / 3;
 
             // Separador superior
             panelBotones.Controls.Add(new Label
@@ -464,62 +490,25 @@ namespace FACTicket_Scanner
                 BackColor = System.Drawing.Color.Silver
             });
 
-            // Fila: [Rotar] [Repetir] [Guardar]
-            btnRotar = new Button
-            {
-                Left = 0,
-                Top = 12,
-                Width = wBtn3,
-                Height = 40,
-                Text = "↻  Rotar 90°",
-                Enabled = false
-            };
-            btnRotar.Click += (s, e) => { rotacionActual = (rotacionActual + 90) % 360; Reprocesar(); };
-            panelBotones.Controls.Add(btnRotar);
+            // Panel de Guardar: fila Rotar/Repetir/Guardar + fila de checkboxes
+            panelGuardar = new PanelGuardarFactura { Left = 0, Top = 12, Width = wP, Height = 84 };
+            panelGuardar.btnRotar.Click += (s, e) => { CancelarAutoGuardadoLote(); rotacionActual = (rotacionActual + 90) % 360; Reprocesar(); };
+            panelGuardar.btnRepetir.Click += BtnRepetir_Click;
+            panelGuardar.btnGuardar.Click += BtnGuardar_Click;
+            btnRotar = panelGuardar.btnRotar;
+            btnRepetir = panelGuardar.btnRepetir;
+            panelBotones.Controls.Add(panelGuardar);
 
-            btnRepetir = new Button
-            {
-                Left = wBtn3 + 8,
-                Top = 12,
-                Width = wBtn3,
-                Height = 40,
-                Text = "🔁  Repetir",
-                Enabled = false
-            };
-            btnRepetir.Click += BtnRepetir_Click;
-            panelBotones.Controls.Add(btnRepetir);
-
-            btnGuardar = new Button
-            {
-                Left = (wBtn3 + 8) * 2,
-                Top = 12,
-                Width = wBtn3,
-                Height = 40,
-                Text = "💾  Guardar",
-                Enabled = false,
-                BackColor = System.Drawing.Color.SeaGreen,
-                ForeColor = System.Drawing.Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            btnGuardar.Click += BtnGuardar_Click;
-            panelBotones.Controls.Add(btnGuardar);
-
-            // Fila: checkboxes de opciones de guardado
-            int wChk = (wP - 8) / 2;
-            chkGuardarOriginal = new CheckBox { Left = 0, Top = 60, Width = wChk, Height = 20, Text = "Guardar imagen original", Checked = true };
-            chkGuardarJpg = new CheckBox { Left = wChk + 8, Top = 60, Width = wChk, Height = 20, Text = "Guardar procesada .jpg", Checked = true };
-            chkGuardarPdf = new CheckBox { Left = 0, Top = 82, Width = wChk, Height = 20, Text = "Guardar procesada .pdf", Checked = true };
-            chkExtraerGemini = new CheckBox { Left = wChk + 8, Top = 82, Width = wChk, Height = 20, Text = "Extraer y guardar datos (Gemini)", Checked = true };
-            panelBotones.Controls.Add(chkGuardarOriginal);
-            panelBotones.Controls.Add(chkGuardarJpg);
-            panelBotones.Controls.Add(chkGuardarPdf);
-            panelBotones.Controls.Add(chkExtraerGemini);
+            panelGuardar.chkGuardarOriginal.CheckedChanged += (s, e) => CancelarAutoGuardadoLote();
+            panelGuardar.chkGuardarJpg.CheckedChanged += (s, e) => CancelarAutoGuardadoLote();
+            panelGuardar.chkGuardarPdf.CheckedChanged += (s, e) => CancelarAutoGuardadoLote();
+            panelGuardar.chkExtraerGemini.CheckedChanged += (s, e) => CancelarAutoGuardadoLote();
 
             // Separador
             panelBotones.Controls.Add(new Label
             {
                 Left = 0,
-                Top = 112,
+                Top = 104,
                 Width = wP,
                 Height = 1,
                 BorderStyle = BorderStyle.FixedSingle,
@@ -530,11 +519,11 @@ namespace FACTicket_Scanner
             lblEstado = new Label
             {
                 Left = 0,
-                Top = 120,
+                Top = 112,
                 Width = wP - 160,
                 Height = 36,
                 Text = "Sin cámara – usa Configuracion > Camara",
-                Font = new System.Drawing.Font(Font.FontFamily, 9, System.Drawing.FontStyle.Bold),
+                Font = new System.Drawing.Font(Font.FontFamily, 11, System.Drawing.FontStyle.Bold),
                 ForeColor = System.Drawing.Color.DarkSlateBlue,
                 AutoSize = false,
                 TextAlign = System.Drawing.ContentAlignment.MiddleLeft
@@ -544,7 +533,7 @@ namespace FACTicket_Scanner
             btnCapturar = new Button
             {
                 Left = wP - 152,
-                Top = 116,
+                Top = 108,
                 Width = 152,
                 Height = 40,
                 Text = "📷  Tomar foto",
@@ -557,96 +546,8 @@ namespace FACTicket_Scanner
             btnCapturar.Click += BtnCapturar_Click;
             panelBotones.Controls.Add(btnCapturar);
 
-            // --- Progreso del lote + botón Salir (solo visibles durante un lote) ---
-            lblProgresoLote = new Label
-            {
-                Left = 0,
-                Top = 158,
-                Width = wP - 160,
-                Height = 22,
-                Text = "",
-                Font = new System.Drawing.Font(Font.FontFamily, 9, System.Drawing.FontStyle.Bold),
-                ForeColor = System.Drawing.Color.SteelBlue,
-                TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
-                Visible = false
-            };
-            panelBotones.Controls.Add(lblProgresoLote);
-
-            btnSalirLote = new Button
-            {
-                Left = wP - 152,
-                Top = 158,
-                Width = 152,
-                Height = 28,
-                Text = "✖  Salir del lote",
-                Visible = false,
-                BackColor = System.Drawing.Color.IndianRed,
-                ForeColor = System.Drawing.Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            btnSalirLote.Click += BtnSalirLote_Click;
-            panelBotones.Controls.Add(btnSalirLote);
-
             // Ajustar altura del panelBotones según contenido
-            panelBotones.Height = lblProgresoLote.Bottom + 8;
-        }
-
-        // Helper: crea un par Label+TrackBar+Label de valor en el panelScrollable
-        private (TrackBar trk, Label val) Slider(string texto, int y,
-            int min, int max, int valor, int tick)
-        {
-            int wTotal = panelScrollable.ClientSize.Width - 16;
-            if (wTotal < 200) wTotal = 200;
-            int wLbl = 130, wVal = 48, wTrk = wTotal - wLbl - wVal - 4;
-
-            panelScrollable.Controls.Add(new Label
-            {
-                Left = 0,
-                Top = y + 6,
-                Width = wLbl,
-                Text = texto,
-                TextAlign = System.Drawing.ContentAlignment.MiddleRight
-            });
-
-            var trk = new TrackBar
-            {
-                Left = wLbl + 2,
-                Top = y,
-                Width = wTrk,
-                Height = 30,
-                Minimum = min,
-                Maximum = max,
-                Value = Math.Min(max, Math.Max(min, valor)),
-                TickFrequency = tick,
-                AutoSize = false
-            };
-            panelScrollable.Controls.Add(trk);
-
-            var lbl = new Label { Left = wLbl + wTrk + 4, Top = y + 6, Width = wVal };
-            panelScrollable.Controls.Add(lbl);
-
-            return (trk, lbl);
-        }
-
-        // -----------------------------------------------------------------------
-        // Actualiza etiquetas de valores de sliders
-        // -----------------------------------------------------------------------
-        private void ActualizarEtiquetas()
-        {
-            if (valBlock == null) return;
-            valBlock.Text = (trkBlock.Value * 2 + 1).ToString();
-            valC.Text = trkC.Value.ToString();
-            valContraste.Text = trkContraste.Value == 0 ? "off" : trkContraste.Value.ToString();
-            valBrillo.Text = trkBrillo.Value.ToString("+#;-#;0");
-            valRuido.Text = trkRuido.Value == 0 ? "off" : trkRuido.Value.ToString();
-            valNitidez.Text = trkNitidez.Value == 0 ? "off" : trkNitidez.Value.ToString();
-            valGrueso.Text = trkGrueso.Value.ToString("+#;-#;0");
-            valUmbral.Text = trkUmbral.Value == 0 ? "auto" : trkUmbral.Value.ToString();
-            valMargen.Text = $"{trkMargen.Value}%";
-            valMargenSup.Text = trkMargenSup.Value == 0 ? "off" : $"{trkMargenSup.Value}%";
-            valMargenInf.Text = trkMargenInf.Value == 0 ? "off" : $"{trkMargenInf.Value}%";
-            valMargenIzq.Text = trkMargenIzq.Value == 0 ? "off" : $"{trkMargenIzq.Value}%";
-            valMargenDer.Text = trkMargenDer.Value == 0 ? "off" : $"{trkMargenDer.Value}%";
+            panelBotones.Height = btnCapturar.Bottom + 8;
         }
 
         // -----------------------------------------------------------------------
@@ -656,22 +557,18 @@ namespace FACTicket_Scanner
         {
             if (!modoCaptura || fotoCapturada == null) return;
             Log("Reprocesar: inicio");
-            ActualizarEtiquetas();
 
             resultadoProcesado?.Dispose();
             Log("Reprocesar: llamando ProcesarImagen");
-            CheckBox? chkEdicionManual = null;
-            foreach (Control c in panelScrollable.Controls)
-                if (c is CheckBox chk) { chkEdicionManual = chk; break; }
 
             resultadoProcesado = ImageProcessor.ProcesarImagen(fotoCapturada, rotacionActual,
-                trkBlock.Value * 2 + 1, trkC.Value,
-                trkRuido.Value, trkNitidez.Value, trkGrueso.Value,
-                trkContraste.Value, trkBrillo.Value,
-                trkUmbral.Value, trkMargen.Value,
-                chkEdicionManual?.Checked ?? false,
-                trkMargenSup.Value, trkMargenInf.Value,
-                trkMargenIzq.Value, trkMargenDer.Value);
+                panelAjustes.trkBlock.Value * 2 + 1, panelAjustes.trkC.Value,
+                panelAjustes.trkRuido.Value, panelAjustes.trkNitidez.Value, panelAjustes.trkGrueso.Value,
+                panelAjustes.trkContraste.Value, panelAjustes.trkBrillo.Value,
+                panelAjustes.trkUmbral.Value, panelAjustes.trkMargen.Value,
+                panelAjustes.chkEdicionManual.Checked,
+                panelAjustes.trkMargenSup.Value, panelAjustes.trkMargenInf.Value,
+                panelAjustes.trkMargenIzq.Value, panelAjustes.trkMargenDer.Value);
             Log("Reprocesar: ProcesarImagen OK");
 
             var bitmapAnterior = pictureBox1.Image;
@@ -717,24 +614,24 @@ namespace FACTicket_Scanner
                 Log("BtnCapturar_Click: llamando CalcularAjustesAutomaticos");
                 var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
                 Log("BtnCapturar_Click: CalcularAjustesAutomaticos OK");
-                trkContraste.Value = Math.Min(trkContraste.Maximum, Math.Max(trkContraste.Minimum, autoContraste));
-                trkBrillo.Value = Math.Min(trkBrillo.Maximum, Math.Max(trkBrillo.Minimum, autoBrillo));
-                trkRuido.Value = Math.Min(trkRuido.Maximum, Math.Max(trkRuido.Minimum, autoRuido + 1));
+                panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
+                panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
+                panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
 
-                trkBlock.Value = 25;
-                trkC.Value = 10;
-                trkNitidez.Value = 1;
-                trkGrueso.Value = 0;
-                trkUmbral.Value = 10;
-                trkMargen.Value = 5;
-                trkMargenSup.Value = 0;
-                trkMargenInf.Value = 0;
-                trkMargenIzq.Value = 0;
-                trkMargenDer.Value = 0;
+                panelAjustes.trkBlock.Value = 25;
+                panelAjustes.trkC.Value = 10;
+                panelAjustes.trkNitidez.Value = 1;
+                panelAjustes.trkGrueso.Value = 0;
+                panelAjustes.trkUmbral.Value = 10;
+                panelAjustes.trkMargen.Value = 5;
+                panelAjustes.trkMargenSup.Value = 0;
+                panelAjustes.trkMargenInf.Value = 0;
+                panelAjustes.trkMargenIzq.Value = 0;
+                panelAjustes.trkMargenDer.Value = 0;
                 Log("BtnCapturar_Click: sliders reseteados OK");
 
                 modoCaptura = true;
-                btnGuardar.Enabled = true;
+                panelGuardar.btnGuardar.Enabled = true;
                 btnRepetir.Enabled = true;
                 btnRotar.Enabled = true;
                 btnCapturar.Enabled = false;
@@ -761,6 +658,7 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         private void BtnRepetir_Click(object? sender, EventArgs e)
         {
+            CancelarAutoGuardadoLote();
             VolverALive();
         }
 
@@ -797,13 +695,14 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         private void LimpiarImagenActual()
         {
+            CancelarAutoGuardadoLote();
             modoCaptura = false;
             fotoCapturada?.Dispose();
             fotoCapturada = null;
             resultadoProcesado?.Dispose();
             resultadoProcesado = null;
 
-            btnGuardar.Enabled = false;
+            panelGuardar.btnGuardar.Enabled = false;
             btnRepetir.Enabled = false;
             btnRotar.Enabled = false;
             btnCapturar.Enabled = true;
@@ -819,6 +718,7 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         private void BtnGuardar_Click(object? sender, EventArgs e)
         {
+            CancelarAutoGuardadoLote();
             if (resultadoProcesado == null || fotoCapturada == null) return;
             Mat copiaImg = resultadoProcesado.Clone();
             Mat copiaOriginal = fotoCapturada.Clone();
@@ -826,7 +726,7 @@ namespace FACTicket_Scanner
 
             bool perteneceALote = indiceColaActual >= 0 && indiceColaActual < colaArchivos.Count;
 
-            btnGuardar.Enabled = false;
+            panelGuardar.btnGuardar.Enabled = false;
             btnRotar.Enabled = false;
             btnRepetir.Enabled = false;
             btnCapturar.Enabled = false;
@@ -834,7 +734,8 @@ namespace FACTicket_Scanner
 
             guardadoEnCurso = true;
             album.GuardarImagen(copiaImg, copiaOriginal, rot, ajustes,
-                chkGuardarOriginal.Checked, chkGuardarJpg.Checked, chkGuardarPdf.Checked, chkExtraerGemini.Checked,
+                panelGuardar.chkGuardarOriginal.Checked, panelGuardar.chkGuardarJpg.Checked,
+                panelGuardar.chkGuardarPdf.Checked, panelGuardar.chkExtraerGemini.Checked,
                 a => album.GuardarAjustes(a),
                 msg => { lblEstado.Text = msg; },
                 () => { this.UseWaitCursor = false; btnCapturar.Enabled = true; },
@@ -846,7 +747,34 @@ namespace FACTicket_Scanner
                     GuardadoTerminado?.Invoke(this, EventArgs.Empty);
                     guardadoEnCurso = false;
                     if (perteneceALote) CargarSiguienteDeCola();
-                });
+                },
+                MostrarRevisionEmbebida);
+        }
+
+        // -----------------------------------------------------------------------
+        // Muestra el panel de revisión de datos (Gemini) dentro del hueco de
+        // panelScrollable, ocultando temporalmente los sliders. Se resuelve
+        // cuando el usuario pulsa Guardar/Cancelar o expira la cuenta atrás.
+        // -----------------------------------------------------------------------
+        private System.Threading.Tasks.Task<DatosTicket?> MostrarRevisionEmbebida(DatosTicket datos)
+        {
+            var tcs = new System.Threading.Tasks.TaskCompletionSource<DatosTicket?>();
+
+            panelAjustes.Visible = false;
+            panelRevision.Visible = true;
+
+            void OnCompletada(object? s, RevisionCompletadaEventArgs e)
+            {
+                panelRevision.RevisionCompletada -= OnCompletada;
+                panelRevision.Visible = false;
+                panelAjustes.Visible = true;
+                tcs.TrySetResult(e.Resultado);
+            }
+
+            panelRevision.RevisionCompletada += OnCompletada;
+            panelRevision.Mostrar(datos);
+
+            return tcs.Task;
         }
 
         // -----------------------------------------------------------------------
@@ -891,7 +819,7 @@ namespace FACTicket_Scanner
                 Mat img = Cv2.ImRead(ruta);
                 if (img.Empty())
                 {
-                    MessageBox.Show($"No se pudo leer la imagen:\n{ruta}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    DialogoAutoConfirmar.Aviso($"No se pudo leer la imagen:\n{ruta}", "Error");
                     CargarSiguienteDeCola();
                     return;
                 }
@@ -907,11 +835,11 @@ namespace FACTicket_Scanner
                         $"Guardada el: {duplicado.FechaGuardado}\n" +
                         $"Coincidencia: {63 - distanciaPHash}/63 bits";
 
-                    var respuesta = MessageBox.Show(
+                    bool continuar = DialogoAutoConfirmar.Confirmar(
                         $"Esta imagen parece coincidir con una factura ya escaneada:\n\n{resumen}\n\n¿Continuar de todos modos?",
-                        "Posible imagen duplicada", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                        "Posible imagen duplicada", resultadoPorDefecto: true);
 
-                    if (respuesta == DialogResult.No)
+                    if (!continuar)
                     {
                         img.Dispose();
                         CargarSiguienteDeCola();
@@ -926,13 +854,13 @@ namespace FACTicket_Scanner
                 ResetearZoom();
 
                 var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
-                trkContraste.Value = Math.Min(trkContraste.Maximum, Math.Max(trkContraste.Minimum, autoContraste));
-                trkBrillo.Value = Math.Min(trkBrillo.Maximum, Math.Max(trkBrillo.Minimum, autoBrillo));
-                trkRuido.Value = Math.Min(trkRuido.Maximum, Math.Max(trkRuido.Minimum, autoRuido + 1));
-                trkNitidez.Value = 1;
-                trkUmbral.Value = 10;
+                panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
+                panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
+                panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
+                panelAjustes.trkNitidez.Value = 1;
+                panelAjustes.trkUmbral.Value = 10;
 
-                btnGuardar.Enabled = true;
+                panelGuardar.btnGuardar.Enabled = true;
                 btnRepetir.Enabled = true;
                 btnRotar.Enabled = true;
                 btnCapturar.Enabled = false;
@@ -943,10 +871,11 @@ namespace FACTicket_Scanner
                     : "📂 Imagen cargada – ajusta y pulsa Guardar";
 
                 Reprocesar();
+                IniciarAutoGuardadoLote();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                DialogoAutoConfirmar.Aviso($"Error: {ex.Message}", "Error");
                 CargarSiguienteDeCola();
             }
         }
@@ -969,6 +898,7 @@ namespace FACTicket_Scanner
         private void BtnSalirLote_Click(object? sender, EventArgs e)
         {
             if (colaArchivos.Count == 0) return;
+            CancelarAutoGuardadoLote();
 
             var resultado = MessageBox.Show(
                 "Vas a salir del lote. La imagen actual no se guardará y se descartarán las imágenes pendientes.\n\n¿Continuar?",
@@ -1224,7 +1154,6 @@ namespace FACTicket_Scanner
             lblEstado.Text = "Iniciando escaneo de pHash...";
             album.EscanearPHashFacturas(msg => lblEstado.Text = msg);
         }
-
         private void exportarToolStripMenuItem_Click(object sender, EventArgs e)
         {
             using var form = new ExportarForm();

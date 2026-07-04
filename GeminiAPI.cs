@@ -76,9 +76,9 @@ namespace FACTicket_Scanner
             }
             catch (UnauthorizedAccessException)
             {
-                MessageBox.Show(
+                DialogoAutoConfirmar.Aviso(
                     "No hay permisos para guardar en la carpeta del programa.\nEjecuta la aplicación como administrador e inténtalo de nuevo.",
-                    "Permiso denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "Permiso denegado");
             }
         }
 
@@ -120,10 +120,16 @@ namespace FACTicket_Scanner
                             },
                             new
                             {
-                                text = @"Eres un experto en procesamiento de facturas y tickets.
+                                text = @"Eres un experto en procesamiento de facturas, albaranes y tickets.
 Extrae TODA la información visible en esta imagen de forma estructurada.
+Primero identifica el TIPO de documento:
+- ""factura"": lleva desglose de base imponible, IVA y total a pagar.
+- ""albaran"": es un documento de entrega/recepción de mercancía, normalmente SIN desglose de IVA ni importe total a pagar (puede decir ""Albarán"", ""Nota de entrega"", etc.).
+- ""ticket"": recibo simplificado de compra (comercio, gasolinera...).
+Si tiene desglose de IVA y total, es ""factura"" aunque también diga entrega de mercancía.
 Devuelve ÚNICAMENTE un JSON válido sin texto adicional ni bloques de código markdown, con esta estructura exacta:
 {
+  ""tipo_documento"": ""factura"",
   ""numero_factura"": """",
   ""fecha_emision"": """",
   ""fecha_vencimiento"": """",
@@ -147,10 +153,12 @@ Devuelve ÚNICAMENTE un JSON válido sin texto adicional ni bloques de código m
     }
   ],
   ""base_imponible"": """",
-  ""iva"": """",
+  ""iva_importe"": """",
+  ""iva_porcentaje"": """",
   ""total"": """",
   ""metodo_pago"": """"
 }
+Importante: ""iva_importe"" es SIEMPRE la cantidad en euros de IVA (no el %). ""iva_porcentaje"" es el tipo aplicado (ej. 21), si aparece.
 Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos."
                             }
                         }
@@ -198,11 +206,22 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
                 var root = doc.RootElement;
 
                 datos.Numero = LeerString(root, "numero_factura");
+                string tipo = LeerString(root, "tipo_documento").ToLowerInvariant();
+                datos.TipoDocumento = (tipo == "albaran" || tipo == "ticket") ? tipo : "factura";
                 datos.Fecha = LeerString(root, "fecha_emision");
                 datos.FechaVencimiento = LeerString(root, "fecha_vencimiento");
                 datos.Total = LeerString(root, "total");
                 datos.Base = LeerString(root, "base_imponible");
-                datos.Iva = LeerString(root, "iva");
+                string ivaImporteStr = LeerString(root, "iva_importe");
+                double ivaPct = LeerDouble(root, "iva_porcentaje");
+                double baseNum = LeerDouble(root, "base_imponible");
+                if (!string.IsNullOrWhiteSpace(ivaImporteStr))
+                    datos.Iva = ivaImporteStr;
+                else if (ivaPct > 0 && baseNum > 0)
+                    datos.Iva = (baseNum * ivaPct / 100.0).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                else
+                    datos.Iva = "";
+                datos.IvaPorcentaje = ivaPct;
                 datos.MetodoPago = LeerString(root, "metodo_pago");
 
                 // Emisor

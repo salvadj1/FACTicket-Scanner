@@ -6,7 +6,7 @@ namespace FACTicket_Scanner
 {
     internal static class HtmlBuilder
     {
-        internal static void GenerarAlbum(string carpetaTickets, List<DatosTicket> lista, string nombreAlbum)
+        internal static void GenerarAlbum(string carpetaTickets, List<DatosTicket> lista, string nombreAlbum, List<string>? empresasCarpetas = null)
         {
             string rutaHtml = System.IO.Path.Combine(carpetaTickets, nombreAlbum);
             var sb = new System.Text.StringBuilder();
@@ -19,6 +19,8 @@ namespace FACTicket_Scanner
             sb.AppendLine(Html());
             sb.AppendLine("<script>");
             sb.AppendLine("const tickets=" + JsonSerializer.Serialize(lista, new JsonSerializerOptions { WriteIndented = false }) + ";");
+            // Empresas obtenidas de las carpetas en disco (no del JSON de cada ticket).
+            sb.AppendLine("const empresasCarpetas=" + JsonSerializer.Serialize(empresasCarpetas ?? new List<string>()) + ";");
             sb.AppendLine($"const generado=\"{DateTime.Now:dd/MM/yyyy HH:mm}\";");
             sb.AppendLine(Js());
             sb.AppendLine("</script></body></html>");
@@ -68,10 +70,10 @@ namespace FACTicket_Scanner
       <div id=""grafico-empresas""></div>
     </div>
 
-    <!-- Distribución por mes -->
+    <!-- IVA acumulado por trimestre (Modelo 303), mismo año/trimestre que arriba -->
     <div class=""bloque"">
-      <div class=""bloque-titulo"">Distribución mensual</div>
-      <canvas id=""grafico-meses"" height=""120""></canvas>
+      <div class=""bloque-titulo"">IVA soportado por trimestre</div>
+      <canvas id=""grafico-iva-trim"" height=""120""></canvas>
     </div>
   </aside>
 
@@ -121,9 +123,10 @@ namespace FACTicket_Scanner
   <div id=""modal-inner"">
     <div id=""modal-header"">
       <div id=""modal-nav"">
-        <button onclick=""navModal(-1)"" title=""Anterior"">◀</button>
+        <button onclick=""navModal(-1)"" title=""Anterior (misma empresa)"">◀</button>
         <span id=""modal-titulo""></span>
-        <button onclick=""navModal(1)"" title=""Siguiente"">▶</button>
+        <button onclick=""navModal(1)"" title=""Siguiente (misma empresa)"">▶</button>
+        <button id=""modal-editar"" onclick=""editarFoto()"" title=""Editar imagen"">✏️</button>
         <button id=""modal-cerrar"" onclick=""cerrarModal()"" title=""Cerrar"">✕</button>
       </div>
     </div>
@@ -199,8 +202,8 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
 .emp-bar-track{height:8px;background:#eee;border-radius:4px;overflow:hidden;}
 .emp-bar-fill{height:100%;border-radius:4px;background:var(--azul);transition:width .4s;}
 
-/* Gráfico meses */
-#grafico-meses{width:100%;display:block;}
+/* Gráfico IVA trimestral */
+#grafico-iva-trim{width:100%;display:block;}
 
 /* ── Panel derecho ── */
 #panel-der{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
@@ -255,11 +258,21 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
 /* Tarjeta */
 .tarjeta{
   border-radius:8px;overflow:hidden;cursor:pointer;
-  border:1px solid #eaeaea;transition:transform .15s,box-shadow .15s;
-  background:#fafafa;
+  border:1px solid #d5d8dc;transition:transform .15s,box-shadow .15s;
+  background:#e9ebee;box-shadow:0 1px 3px rgba(0,0,0,.08);
 }
 .tarjeta:hover{transform:translateY(-3px);box-shadow:0 6px 16px rgba(0,0,0,.13);}
-.tarjeta img{width:100%;height:110px;object-fit:cover;display:block;}
+.tarjeta img{
+  width:100%;height:110px;object-fit:cover;object-position:top;display:block;
+  filter:contrast(1.15) saturate(1.05);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);
+}
+.img-wrap{position:relative;}
+.badge-lineas{
+  position:absolute;top:4px;right:4px;z-index:1;
+  background:rgba(0,0,0,.55);color:#fff;font-size:.68em;
+  padding:2px 6px;border-radius:10px;
+}
 .tarjeta .ph{height:110px;background:#eee;display:flex;align-items:center;
   justify-content:center;color:#aaa;font-size:.78em;}
 .tarjeta .resumen{padding:8px;}
@@ -297,16 +310,27 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
   padding:12px 20px;border-bottom:1px solid var(--borde);
   background:#fff;flex-shrink:0;
 }
-#modal-nav{display:flex;align-items:center;gap:12px;}
+/* Columnas de ancho fijo: los botones nunca cambian de sitio, solo
+   el título (columna central) se trunca con ellipsis si no cabe. */
+#modal-nav{
+  display:grid;grid-template-columns:42px 380px 42px 42px 42px;
+  align-items:center;gap:8px;
+}
 #modal-nav button{
-  padding:5px 12px;border:1px solid var(--borde);border-radius:6px;
-  background:#f8f9fa;cursor:pointer;font-size:.9em;
+  padding:5px 0;border:1px solid var(--borde);border-radius:6px;
+  background:#f8f9fa;cursor:pointer;font-size:.9em;width:100%;
 }
 #modal-nav button:hover{background:var(--azul-s);}
-#modal-titulo{font-size:1em;font-weight:700;color:var(--azul);}
+#modal-titulo{
+  font-size:1em;font-weight:700;color:var(--azul);
+  text-align:center;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;
+}
+#modal-editar{background:#f8f9fa;}
+#modal-editar:hover{background:#fef3e2;}
 #modal-cerrar{
   font-size:1.3em;color:#888;border:none;background:#f0f0f0;
-  cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid var(--borde);
+  cursor:pointer;padding:4px 0;border-radius:6px;border:1px solid var(--borde);
 }
 #modal-cerrar:hover{background:var(--rojo-s);color:var(--rojo);}
 #trimSel{padding:3px 6px;border:1px solid var(--borde);border-radius:6px;font-size:.8em;}
@@ -349,8 +373,25 @@ table.items td{padding:4px 8px;border-bottom:1px solid #f0f0f0;}
 const num = v => parseFloat((v||'0').toString().replace(',','.')) || 0;
 const eur = v => '€ ' + v.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});
 function isoFecha(t){ return (t.fecha||t.fecha_guardado||''); }
-function anioFecha(t){ const m=(isoFecha(t)||'').match(/^(\d{4})/); return m?m[1]:''; }
-function mesFecha(t){ const m=(isoFecha(t)||'').match(/^\d{4}-(\d{2})/); return m?parseInt(m[1],10):0; }
+// Reconoce yyyy-MM-dd, yyyy/MM/dd, dd/MM/yyyy y dd-MM-yyyy (igual que ExportarForm.ParsearFecha en C#).
+function parsearFechaFlexible(str){
+  if(!str) return null;
+  str=str.trim();
+  let m=str.match(/^(\d{4})[-\/](\d{2})[-\/]\d{2}/);
+  if(m) return {anio:m[1], mes:parseInt(m[2],10)};
+  m=str.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})/);
+  if(m) return {anio:m[3], mes:parseInt(m[2],10)};
+  return null;
+}
+function anioFecha(t){ const f=parsearFechaFlexible(isoFecha(t)); return f?f.anio:''; }
+function mesFecha(t){ const f=parsearFechaFlexible(isoFecha(t)); return f?f.mes:0; }
+// Nombre de empresa deducido de la ruta real (Año/Empresa/Factura_x/...),
+// no del texto libre t.empresa (puede variar aunque sea la misma carpeta).
+function empresaCarpeta(t){
+  const ruta=t.json||t.imagen||t.pdf||'';
+  const partes=ruta.split('/');
+  return partes.length>=2 ? partes[1] : (t.empresa||'(sin empresa)').trim();
+}
 
 let vistaActual = 'empresa';
 let idxModal = -1;
@@ -359,7 +400,11 @@ let listaFiltrada = [];
 /* ─── Filtros desplegables ─── */
 function poblarFiltros(){
   const anios = [...new Set(tickets.map(anioFecha).filter(Boolean))].sort();
-  const empresas = [...new Set(tickets.map(t=>(t.empresa||'').trim()).filter(Boolean))].sort();
+  // Empresas = carpetas reales en disco (empresasCarpetas), no el campo
+  // empresa de cada datos.json (que puede faltar o no coincidir).
+  const empresas = (empresasCarpetas && empresasCarpetas.length)
+    ? [...empresasCarpetas].sort()
+    : [...new Set(tickets.map(t=>(t.empresa||'').trim()).filter(Boolean))].sort();
   const sa = document.getElementById('filtroAnio');
   anios.forEach(a=>{ const o=document.createElement('option'); o.value=o.textContent=a; sa.appendChild(o); });
   const se = document.getElementById('filtroEmpresa');
@@ -369,7 +414,7 @@ function poblarFiltros(){
 /* ─── Stats ─── */
 function renderStats(lista){
   const total = lista.reduce((s,t)=>s+num(t.total),0);
-  const empresas = new Set(lista.map(t=>(t.empresa||'').trim()).filter(Boolean));
+  const empresas = new Set(lista.map(empresaCarpeta).filter(Boolean));
   const media = lista.length ? total/lista.length : 0;
   const sinTotal = lista.filter(t=>!t.total||num(t.total)===0).length;
   let top=null; lista.forEach(t=>{ if(!top||num(t.total)>num(top.total)) top=t; });
@@ -400,6 +445,7 @@ function poblarSelectorAnios(){
 }
 function dibujarGrafico(){
   const anio = document.getElementById('anioSel').value;
+  const trimActivo = document.getElementById('trimSel').value;
   const sumas = [0,0,0,0];
   tickets.forEach(t=>{
     const a=anioFecha(t), m=mesFecha(t);
@@ -411,22 +457,38 @@ function dibujarGrafico(){
   ctx.clearRect(0,0,w,160);
   const max=Math.max(...sumas,1);
   const barW=w/4;
+  cv.style.cursor='pointer';
   sumas.forEach((val,i)=>{
+    const activo = trimActivo && parseInt(trimActivo)===i+1;
     const h=(val/max)*110, x=i*barW+barW*.15, bw=barW*.7;
     const grad=ctx.createLinearGradient(0,130-h,0,130);
-    grad.addColorStop(0,'#1a73e8'); grad.addColorStop(1,'#6faef8');
+    grad.addColorStop(0, activo?'#0d47a1':'#1a73e8'); grad.addColorStop(1, activo?'#1a73e8':'#6faef8');
     ctx.fillStyle=grad;
     ctx.beginPath(); ctx.roundRect(x,130-h,bw,h,3); ctx.fill();
-    ctx.fillStyle='#555'; ctx.font='11px Arial'; ctx.textAlign='center';
+    if(activo){ ctx.strokeStyle='#0d47a1'; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(x,130-h,bw,h,3); ctx.stroke(); }
+    ctx.fillStyle='#555'; ctx.font=activo?'bold 11px Arial':'11px Arial'; ctx.textAlign='center';
     ctx.fillText('T'+(i+1),x+bw/2,148);
     if(val>0){ ctx.fillStyle='#1a73e8'; ctx.font='bold 10px Arial'; ctx.fillText(eur(val),x+bw/2,125-h); }
   });
 }
 
+// Click sobre una barra del gráfico trimestral = seleccionar ese trimestre
+// (equivalente a elegirlo en el desplegable trimSel).
+document.getElementById('grafico').addEventListener('click', function(e){
+  const w=this.clientWidth||280;
+  const barW=w/4;
+  const idx=Math.min(3, Math.max(0, Math.floor(e.offsetX/barW)));
+  const trimSel=document.getElementById('trimSel');
+  const nuevoValor=String(idx+1);
+  trimSel.value = trimSel.value===nuevoValor ? '' : nuevoValor; // click de nuevo = deseleccionar
+  dibujarGrafico();
+  filtrarTrimestre();
+});
+
 /* ─── Top empresas barras horizontales ─── */
 function dibujarTopEmpresas(lista){
   const sumas={};
-  lista.forEach(t=>{ const e=(t.empresa||'(sin empresa)').trim(); sumas[e]=(sumas[e]||0)+num(t.total); });
+  lista.forEach(t=>{ const e=empresaCarpeta(t); sumas[e]=(sumas[e]||0)+num(t.total); });
   const sorted=Object.entries(sumas).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const max=sorted.length?sorted[0][1]:1;
   document.getElementById('grafico-empresas').innerHTML = sorted.map(([e,v])=>`
@@ -436,25 +498,44 @@ function dibujarTopEmpresas(lista){
     </div>`).join('');
 }
 
-/* ─── Gráfico mensual ─── */
-function dibujarGraficoMeses(lista){
-  const sumas=new Array(12).fill(0);
-  lista.forEach(t=>{ const m=mesFecha(t); if(m>0) sumas[m-1]+=num(t.total); });
-  const cv=document.getElementById('grafico-meses');
+/* ─── IVA soportado por trimestre (Modelo 303) ───
+   Usa el mismo año seleccionado en anioSel. Si además hay un trimestre
+   elegido en trimSel, se resalta esa barra igual que en el gráfico de gasto. */
+function dibujarIvaTrimestral(){
+  const anio = document.getElementById('anioSel').value;
+  const trimActivo = document.getElementById('trimSel').value;
+  const sumas=[0,0,0,0];
+  tickets.forEach(t=>{
+    const a=anioFecha(t), m=mesFecha(t);
+    if(a===anio && m>0) sumas[Math.ceil(m/3)-1]+=num(t.iva);
+  });
+  const cv=document.getElementById('grafico-iva-trim');
   const ctx=cv.getContext&&cv.getContext('2d'); if(!ctx) return;
   const w=cv.clientWidth||280; cv.width=w; cv.height=120;
   ctx.clearRect(0,0,w,120);
   const max=Math.max(...sumas,1);
-  const barW=w/12;
-  const meses=['E','F','M','A','M','J','J','A','S','O','N','D'];
+  const barW=w/4;
+  cv.style.cursor='pointer';
   sumas.forEach((val,i)=>{
-    const h=(val/max)*80, x=i*barW+1, bw=barW-2;
-    ctx.fillStyle=val>0?'#34a853':'#e8eaed';
-    ctx.beginPath(); ctx.roundRect(x,90-h,bw,h,2); ctx.fill();
-    ctx.fillStyle='#777'; ctx.font='9px Arial'; ctx.textAlign='center';
-    ctx.fillText(meses[i],x+bw/2,108);
+    const activo = trimActivo && parseInt(trimActivo)===i+1;
+    const h=(val/max)*80, x=i*barW+barW*.15, bw=barW*.7;
+    ctx.fillStyle = activo ? '#0d6b30' : (val>0?'#34a853':'#e8eaed');
+    ctx.beginPath(); ctx.roundRect(x,90-h,bw,h,3); ctx.fill();
+    ctx.fillStyle='#555'; ctx.font=activo?'bold 10px Arial':'10px Arial'; ctx.textAlign='center';
+    ctx.fillText('T'+(i+1),x+bw/2,108);
+    if(val>0){ ctx.fillStyle='#137333'; ctx.font='bold 9px Arial'; ctx.fillText(eur(val),x+bw/2,90-h-4); }
   });
 }
+document.getElementById('grafico-iva-trim').addEventListener('click', function(e){
+  const w=this.clientWidth||280;
+  const barW=w/4;
+  const idx=Math.min(3, Math.max(0, Math.floor(e.offsetX/barW)));
+  const trimSel=document.getElementById('trimSel');
+  const nuevoValor=String(idx+1);
+  trimSel.value = trimSel.value===nuevoValor ? '' : nuevoValor;
+  dibujarGrafico();
+  filtrarTrimestre();
+});
 
 /* ─── Filtro trimestre (panel izquierdo) ─── */
 function filtrarTrimestre(){
@@ -465,7 +546,8 @@ function filtrarTrimestre(){
     : tickets.filter(t => anioFecha(t)===anio);
   renderStats(lista);
   dibujarTopEmpresas(lista);
-  dibujarGraficoMeses(lista);
+  dibujarGrafico();
+  dibujarIvaTrimestral();
 }
 
 /* ─── Vista ─── */
@@ -491,13 +573,13 @@ function filtrar(){
       ||(t.metodo_pago||'').toLowerCase().includes(q)
       ||(t.items||[]).some(i=>(i.descripcion||'').toLowerCase().includes(q));
     const okA = !anio || anioFecha(t)===anio;
-    const okE = !empresa || (t.empresa||'').trim()===empresa;
+    const okE = !empresa || empresaCarpeta(t)===empresa;
     return okQ && okA && okE;
   });
   document.getElementById('contador').textContent = listaFiltrada.length+' resultado(s)';
   renderStats(listaFiltrada);
   dibujarTopEmpresas(listaFiltrada);
-  dibujarGraficoMeses(listaFiltrada);
+  dibujarIvaTrimestral();
   renderizar(listaFiltrada);
 }
 
@@ -518,7 +600,7 @@ function renderizar(lista){
   if(vistaActual==='empresa'){
     // Agrupar por empresa
     const grupos={};
-    items.forEach(t=>{ const e=(t.empresa||'(sin empresa)').trim(); (grupos[e]=grupos[e]||[]).push(t); });
+    items.forEach(t=>{ const e=empresaCarpeta(t); (grupos[e]=grupos[e]||[]).push(t); });
     c.innerHTML = Object.keys(grupos).sort().map(emp=>{
       const its=grupos[emp];
       const suma=its.reduce((s,t)=>s+num(t.total),0);
@@ -542,8 +624,10 @@ function tarjetaHtml(t){
   const idx=tickets.indexOf(t);
   const tieneTotal=t.total&&t.total.toString().trim()!=='';
   const badge=tieneTotal?`<span class=""badge"">${eur(num(t.total))}</span>`:`<span class=""badge vacio"">Sin total</span>`;
+  const nLineas=(t.items||[]).length;
+  const badgeLineas=nLineas>0?`<span class=""badge-lineas"">${nLineas} línea${nLineas===1?'':'s'}</span>`:'';
   const img=t.imagen
-    ?`<img src=""${t.imagen}"" loading=""lazy"" onerror=""this.outerHTML='<div class=ph>Sin imagen</div>'""/>`
+    ?`<div class=""img-wrap"">${badgeLineas}<img src=""${t.imagen}"" loading=""lazy"" onerror=""this.outerHTML='<div class=ph>Sin imagen</div>'""/></div>`
     :`<div class=""ph"">Sin imagen</div>`;
   return `<div class=""tarjeta"" onclick=""abrirModal(${idx})"">
     ${img}
@@ -627,9 +711,29 @@ function abrirModal(idx){
   document.getElementById('modal').classList.add('activo');
 }
 
+// Índices (dentro de tickets) de las facturas de la misma empresa que
+// la que está abierta ahora mismo, en el orden original.
+function indicesMismaEmpresa(){
+  const empActual = empresaCarpeta(tickets[idxModal]);
+  const out=[];
+  tickets.forEach((t,i)=>{ if(empresaCarpeta(t)===empActual) out.push(i); });
+  return out;
+}
+
 function navModal(dir){
-  const newIdx = idxModal+dir;
-  if(newIdx>=0 && newIdx<tickets.length) abrirModal(newIdx);
+  const grupo = indicesMismaEmpresa();
+  const pos = grupo.indexOf(idxModal);
+  const nuevaPos = pos+dir;
+  if(nuevaPos>=0 && nuevaPos<grupo.length) abrirModal(grupo[nuevaPos]);
+}
+
+// Abre la imagen original en una pestaña nueva para poder editarla. Un
+// navegador no puede lanzar un editor externo directamente: desde ahí el
+// usuario puede usar ""Guardar como"" o ""Abrir con"" de su sistema.
+function editarFoto(){
+  const t=tickets[idxModal];
+  if(!t.imagen){ return; }
+  window.open(t.imagen, '_blank');
 }
 
 function cerrarModal(){ document.getElementById('modal').classList.remove('activo'); }
@@ -649,7 +753,7 @@ poblarFiltros();
 poblarSelectorAnios();
 try{ dibujarGrafico(); filtrarTrimestre(); } catch(e){ console.error(e); }
 filtrar();
-window.addEventListener('resize',()=>{ try{ dibujarGrafico(); dibujarGraficoMeses(listaFiltrada); }catch(e){} });
+window.addEventListener('resize',()=>{ try{ dibujarGrafico(); dibujarIvaTrimestral(); }catch(e){} });
 ";
     }
 }

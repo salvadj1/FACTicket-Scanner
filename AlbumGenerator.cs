@@ -42,6 +42,24 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
+        // Lista de empresas a partir de las carpetas Facturas/{Año}/{Empresa}
+        // que existen en disco, ignorando el contenido de los datos.json.
+        // Así una empresa aparece en el filtro aunque su datos.json esté
+        // corrupto, vacío o el campo "empresa" no coincida con la carpeta.
+        // -----------------------------------------------------------------------
+        private static List<string> ObtenerEmpresasDesdeCarpetas(string carpetaTickets)
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!System.IO.Directory.Exists(carpetaTickets)) return new List<string>();
+
+            foreach (string carpetaAnio in System.IO.Directory.GetDirectories(carpetaTickets))
+                foreach (string carpetaEmpresa in System.IO.Directory.GetDirectories(carpetaAnio))
+                    set.Add(System.IO.Path.GetFileName(carpetaEmpresa));
+
+            return set.OrderBy(e => e, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        // -----------------------------------------------------------------------
         public void RegenerarAlbumInicial()
         {
             try
@@ -49,7 +67,7 @@ namespace FACTicket_Scanner
                 string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
                 System.IO.Directory.CreateDirectory(carpetaTickets);
                 var lista = CargarTodasLasFacturas(carpetaTickets);
-                HtmlBuilder.GenerarAlbum(carpetaTickets, lista, NombreAlbum);
+                HtmlBuilder.GenerarAlbum(carpetaTickets, lista, NombreAlbum, ObtenerEmpresasDesdeCarpetas(carpetaTickets));
             }
             catch { }
         }
@@ -61,7 +79,8 @@ namespace FACTicket_Scanner
             AjustesEscaner ajustes,
             bool guardarOriginal, bool guardarJpg, bool guardarPdf, bool extraerConGemini,
             Action<AjustesEscaner> guardarAjustes,
-            Action<string> actualizarEstado, Action habilitarCapturar, Action guardadoTerminado)
+            Action<string> actualizarEstado, Action habilitarCapturar, Action guardadoTerminado,
+            Func<DatosTicket, System.Threading.Tasks.Task<DatosTicket?>> mostrarRevisionEmbebida)
         {
             using Mat _imagenProcesada = imagenProcesada;
             using Mat _original = original;
@@ -75,9 +94,9 @@ namespace FACTicket_Scanner
                     datos = await ExtraerConGeminiConReintento(original);
 
                     if (!string.IsNullOrEmpty(datos.ErrorDiagnostico))
-                        MostrarAvisoAutoConfirmar(
+                        DialogoAutoConfirmar.Aviso(
                             "Extracción incompleta. Puedes rellenar los campos manualmente.",
-                            "Aviso Gemini", segundos: 5);
+                            "Aviso Gemini");
                 }
                 else
                 {
@@ -96,13 +115,13 @@ namespace FACTicket_Scanner
                     return;
                 }
 
-                DatosTicket? datosRevisados = MostrarDialogoRevision(datos);
+                DatosTicket? datosRevisados = await mostrarRevisionEmbebida(datos);
                 if (datosRevisados == null) { actualizarEstado("Guardado cancelado"); return; }
 
                 string subcarpetaEmpresa;
                 if (!string.IsNullOrWhiteSpace(datosRevisados.Empresa))
                 {
-                    subcarpetaEmpresa = ResolverCarpetaEmpresa(carpetaTickets, datosRevisados.Empresa);
+                    subcarpetaEmpresa = ResolverCarpetaEmpresa(carpetaTickets, datosRevisados.Empresa, datosRevisados.Cif);
                     datosRevisados.Empresa = subcarpetaEmpresa; // mismo nombre canónico en carpeta y JSON
                 }
                 else
@@ -110,8 +129,14 @@ namespace FACTicket_Scanner
                     subcarpetaEmpresa = "Sin_empresa";
                 }
                 string nombreFactura = $"Factura_{DateTime.Now:yyyyMMdd_HHmmss}";
+                // Los albaranes NO entran en la contabilidad de facturas: van a una
+                // raíz "Albaranes" aparte, con la misma estructura Año/Empresa/Doc.
+                bool esAlbaran = datosRevisados.TipoDocumento == "albaran";
+                string raizDestino = esAlbaran
+                    ? System.IO.Path.Combine(AppContext.BaseDirectory, "Albaranes")
+                    : carpetaTickets;
                 string carpetaDestino = System.IO.Path.Combine(
-                    carpetaTickets, DateTime.Now.Year.ToString(), subcarpetaEmpresa, nombreFactura);
+                    raizDestino, DateTime.Now.Year.ToString(), subcarpetaEmpresa, nombreFactura);
                 System.IO.Directory.CreateDirectory(carpetaDestino);
 
                 string baseNombre = $"{datosRevisados?.Numero}_{datosRevisados?.Fecha}";
@@ -143,15 +168,15 @@ namespace FACTicket_Scanner
 
                     DatosTicket.GuardarUnico(rutaJsonFactura, datosRevisados);
 
-                    listaExistente.Add(datosRevisados);
-                    HtmlBuilder.GenerarAlbum(carpetaTickets, listaExistente, NombreAlbum);
+                    if (!esAlbaran) listaExistente.Add(datosRevisados);
+                    HtmlBuilder.GenerarAlbum(carpetaTickets, listaExistente, NombreAlbum, ObtenerEmpresasDesdeCarpetas(carpetaTickets));
 
                     actualizarEstado($"✅ Guardado: {carpetaDestino}");
-                    MessageBox.Show($"Guardado en:\n{carpetaDestino}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    DialogoAutoConfirmar.Aviso($"Guardado en:\n{carpetaDestino}", "Éxito");
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Error al guardar: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    DialogoAutoConfirmar.Aviso($"Error al guardar: {ex.Message}", "Error");
                 }
             }
             finally
@@ -161,125 +186,6 @@ namespace FACTicket_Scanner
             }
         }
 
-        // -----------------------------------------------------------------------
-        // Diálogo de revisión de datos (ampliado con campos Gemini)
-        // -----------------------------------------------------------------------
-        private DatosTicket? MostrarDialogoRevision(DatosTicket datos)
-        {
-            using var dlg = new Form
-            {
-                Text = "Revisar datos del ticket",
-                Width = 480,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                StartPosition = FormStartPosition.CenterScreen,
-                MaximizeBox = false,
-                MinimizeBox = false
-            };
-
-            int y = 15, xLbl = 10, wLbl = 150, xTxt = 170, wTxt = 270, rowH = 32;
-
-            var campos = new List<(string etiqueta, string valor)>
-            {
-                ("Empresa (emisor):",     datos.Empresa),
-                ("Fecha emisión:",        datos.Fecha),
-                ("Fecha vencimiento:",    datos.FechaVencimiento),
-                ("Nº Factura:",           datos.Numero),
-                ("CIF/NIF emisor:",       datos.Cif),
-                ("Dirección emisor:",     datos.Direccion),
-                ("Teléfono:",             datos.Telefono),
-                ("Receptor nombre:",      datos.ReceptorNombre),
-                ("Receptor CIF/NIF:",     datos.ReceptorCif),
-                ("Receptor dirección:",   datos.ReceptorDireccion),
-                ("Base imponible:",       datos.Base),
-                ("IVA:",                  datos.Iva),
-                ("Total:",                datos.Total),
-                ("Método de pago:",       datos.MetodoPago),
-            };
-
-            var textBoxes = new List<TextBox>();
-            foreach (var (etiqueta, valor) in campos)
-            {
-                dlg.Controls.Add(new Label { Text = etiqueta, Left = xLbl, Top = y + 5, Width = wLbl });
-                var txt = new TextBox { Left = xTxt, Top = y, Width = wTxt, Text = valor };
-                dlg.Controls.Add(txt);
-                textBoxes.Add(txt);
-                y += rowH;
-            }
-
-            // Mostrar items (solo lectura en el diálogo, son muchos campos)
-            if (datos.Items.Count > 0)
-            {
-                dlg.Controls.Add(new Label
-                {
-                    Text = $"Líneas ({datos.Items.Count}):",
-                    Left = xLbl,
-                    Top = y + 5,
-                    Width = wLbl,
-                    ForeColor = System.Drawing.Color.DarkSlateBlue
-                });
-                var txtItems = new TextBox
-                {
-                    Left = xTxt,
-                    Top = y,
-                    Width = wTxt,
-                    Height = 80,
-                    Multiline = true,
-                    ScrollBars = ScrollBars.Vertical,
-                    ReadOnly = true,
-                    Text = string.Join("\r\n", datos.Items.Select(
-                        it => $"{it.Descripcion} x{it.Cantidad} = {it.Subtotal}"))
-                };
-                dlg.Controls.Add(txtItems);
-                y += 88;
-            }
-
-            var btnOk = new Button { Text = "Guardar", Left = 80, Top = y, Width = 120, Height = 34, DialogResult = DialogResult.OK };
-            var btnCan = new Button { Text = "Cancelar", Left = 250, Top = y, Width = 120, Height = 34, DialogResult = DialogResult.Cancel };
-            var lblContador = new Label { Left = 80, Top = y + 40, Width = 290, ForeColor = System.Drawing.Color.DimGray };
-            dlg.Controls.Add(btnOk);
-            dlg.Controls.Add(btnCan);
-            dlg.Controls.Add(lblContador);
-            dlg.AcceptButton = btnOk;
-            dlg.CancelButton = btnCan;
-            dlg.Height = y + 120;
-
-            int restantes = 5;
-            lblContador.Text = $"Se guardará automáticamente en {restantes}s...";
-            using var timer = new Timer { Interval = 1000 };
-            timer.Tick += (s, e) =>
-            {
-                restantes--;
-                if (restantes <= 0)
-                {
-                    timer.Stop();
-                    dlg.DialogResult = DialogResult.OK;
-                    dlg.Close();
-                    return;
-                }
-                lblContador.Text = $"Se guardará automáticamente en {restantes}s...";
-            };
-            dlg.Shown += (s, e) => timer.Start();
-            btnOk.Click += (s, e) => timer.Stop();
-            btnCan.Click += (s, e) => timer.Stop();
-
-            if (dlg.ShowDialog() != DialogResult.OK) return null;
-
-            datos.Empresa = textBoxes[0].Text.Trim();
-            datos.Fecha = textBoxes[1].Text.Trim();
-            datos.FechaVencimiento = textBoxes[2].Text.Trim();
-            datos.Numero = textBoxes[3].Text.Trim();
-            datos.Cif = textBoxes[4].Text.Trim();
-            datos.Direccion = textBoxes[5].Text.Trim();
-            datos.Telefono = textBoxes[6].Text.Trim();
-            datos.ReceptorNombre = textBoxes[7].Text.Trim();
-            datos.ReceptorCif = textBoxes[8].Text.Trim();
-            datos.ReceptorDireccion = textBoxes[9].Text.Trim();
-            datos.Base = textBoxes[10].Text.Trim();
-            datos.Iva = textBoxes[11].Text.Trim();
-            datos.Total = textBoxes[12].Text.Trim();
-            datos.MetodoPago = textBoxes[13].Text.Trim();
-            return datos;
-        }
 
         // -----------------------------------------------------------------------
         // Detección de facturas duplicadas.
@@ -344,98 +250,9 @@ namespace FACTicket_Scanner
                 $"Total: {existente.Total}\n" +
                 $"Guardada el: {existente.FechaGuardado}";
 
-            return MostrarConfirmacionAutoConfirmar(
+            return DialogoAutoConfirmar.Confirmar(
                 $"Parece que esta factura ya se guardó anteriormente:\n\n{resumen}\n\n¿Quieres continuar y guardarla de nuevo?",
-                "Posible factura duplicada", resultadoPorDefecto: false, segundos: 5);
-        }
-
-        // -----------------------------------------------------------------------
-        // Diálogo Sí/No con cuenta atrás propia. resultadoPorDefecto se aplica
-        // si el usuario no responde a tiempo.
-        // -----------------------------------------------------------------------
-        private static bool MostrarConfirmacionAutoConfirmar(string mensaje, string titulo, bool resultadoPorDefecto, int segundos)
-        {
-            using var dlg = new Form
-            {
-                Text = titulo,
-                Width = 420,
-                Height = 210,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                StartPosition = FormStartPosition.CenterScreen,
-                MaximizeBox = false,
-                MinimizeBox = false
-            };
-
-            var lblMensaje = new Label { Text = mensaje, Left = 15, Top = 15, Width = 380, Height = 100 };
-            var lblContador = new Label { Left = 15, Top = 120, Width = 380, ForeColor = System.Drawing.Color.DimGray };
-            var btnSi = new Button { Text = "Sí", Left = 130, Top = 150, Width = 100, Height = 32, DialogResult = DialogResult.Yes };
-            var btnNo = new Button { Text = "No", Left = 240, Top = 150, Width = 100, Height = 32, DialogResult = DialogResult.No };
-            dlg.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnSi, btnNo });
-            dlg.AcceptButton = resultadoPorDefecto ? btnSi : btnNo;
-
-            int restantes = segundos;
-            lblContador.Text = $"Se autoconfirmará en {restantes}s...";
-            using var timer = new Timer { Interval = 1000 };
-            timer.Tick += (s, e) =>
-            {
-                restantes--;
-                if (restantes <= 0)
-                {
-                    timer.Stop();
-                    dlg.DialogResult = resultadoPorDefecto ? DialogResult.Yes : DialogResult.No;
-                    dlg.Close();
-                    return;
-                }
-                lblContador.Text = $"Se autoconfirmará en {restantes}s...";
-            };
-            dlg.Shown += (s, e) => timer.Start();
-            btnSi.Click += (s, e) => timer.Stop();
-            btnNo.Click += (s, e) => timer.Stop();
-
-            return dlg.ShowDialog() == DialogResult.Yes;
-        }
-
-        // -----------------------------------------------------------------------
-        // Aviso simple (solo Aceptar) con cuenta atrás propia.
-        // -----------------------------------------------------------------------
-        private static void MostrarAvisoAutoConfirmar(string mensaje, string titulo, int segundos)
-        {
-            using var dlg = new Form
-            {
-                Text = titulo,
-                Width = 420,
-                Height = 180,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                StartPosition = FormStartPosition.CenterScreen,
-                MaximizeBox = false,
-                MinimizeBox = false
-            };
-
-            var lblMensaje = new Label { Text = mensaje, Left = 15, Top = 15, Width = 380, Height = 70 };
-            var lblContador = new Label { Left = 15, Top = 90, Width = 380, ForeColor = System.Drawing.Color.DimGray };
-            var btnOk = new Button { Text = "Aceptar", Left = 150, Top = 115, Width = 100, Height = 32, DialogResult = DialogResult.OK };
-            dlg.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnOk });
-            dlg.AcceptButton = btnOk;
-
-            int restantes = segundos;
-            lblContador.Text = $"Se cerrará en {restantes}s...";
-            using var timer = new Timer { Interval = 1000 };
-            timer.Tick += (s, e) =>
-            {
-                restantes--;
-                if (restantes <= 0)
-                {
-                    timer.Stop();
-                    dlg.DialogResult = DialogResult.OK;
-                    dlg.Close();
-                    return;
-                }
-                lblContador.Text = $"Se cerrará en {restantes}s...";
-            };
-            dlg.Shown += (s, e) => timer.Start();
-            btnOk.Click += (s, e) => timer.Stop();
-
-            dlg.ShowDialog();
+                "Posible factura duplicada", resultadoPorDefecto: false);
         }
 
         // -----------------------------------------------------------------------
@@ -450,9 +267,9 @@ namespace FACTicket_Scanner
             }
             catch (Exception exGemini)
             {
-                MessageBox.Show(
+                DialogoAutoConfirmar.Aviso(
                     $"No se pudo extraer datos con Gemini:\n\n{exGemini.Message}\n\nElige otra API key para reintentar.",
-                    "Error Gemini", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "Error Gemini");
 
                 GeminiAPI.AbrirGestionApis();
 
@@ -462,9 +279,9 @@ namespace FACTicket_Scanner
                 }
                 catch (Exception exReintento)
                 {
-                    MessageBox.Show(
+                    DialogoAutoConfirmar.Aviso(
                         $"Sigue sin poder extraer datos con Gemini:\n\n{exReintento.Message}\n\nRellena los datos manualmente.",
-                        "Error Gemini", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        "Error Gemini");
                     return new DatosTicket();
                 }
             }
@@ -545,10 +362,21 @@ namespace FACTicket_Scanner
         // real. Sin diccionario canónico: se compara contra las carpetas ya
         // presentes en disco cada vez.
         // -----------------------------------------------------------------------
-        private static string ResolverCarpetaEmpresa(string carpetaTickets, string nombreEmpresaOriginal)
+        private static string ResolverCarpetaEmpresa(string carpetaTickets, string nombreEmpresaOriginal, string cifOriginal)
         {
             string candidata = SanearNombreCarpeta(nombreEmpresaOriginal);
             if (string.IsNullOrWhiteSpace(candidata)) return "Sin_empresa";
+
+            // 1) Match por CIF: mismo CIF = misma empresa con total seguridad,
+            //    sin importar cómo haya escrito Gemini el nombre esta vez
+            //    (nombre comercial, legal, o ambos combinados).
+            string cifNorm = NormalizarCif(cifOriginal);
+            if (cifNorm.Length > 0)
+            {
+                var cifsExistentes = ObtenerCifsPorEmpresa(carpetaTickets);
+                if (cifsExistentes.TryGetValue(cifNorm, out string? carpetaPorCif))
+                    return carpetaPorCif;
+            }
 
             var existentes = ObtenerNombresEmpresaExistentes(carpetaTickets);
 
@@ -556,14 +384,17 @@ namespace FACTicket_Scanner
             string? exacta = existentes.FirstOrDefault(e => string.Equals(e, candidata, StringComparison.OrdinalIgnoreCase));
             if (exacta != null) return exacta;
 
-            // Buscar la carpeta existente más parecida (normalizando y con fuzzy match)
+            // 2) Fallback sin CIF: fuzzy por conjunto de palabras. Tolera que
+            //    el nombre extraído sea solo el comercial o solo el legal
+            //    (subconjunto de palabras) y erratas de OCR letra a letra,
+            //    a diferencia de comparar la cadena completa.
             string normCandidata = NormalizarNombreEmpresa(candidata);
             string? mejorMatch = null;
             double mejorSimilitud = 0;
 
             foreach (var existente in existentes)
             {
-                double sim = CalcularSimilitud(normCandidata, NormalizarNombreEmpresa(existente));
+                double sim = CalcularSimilitudPalabras(normCandidata, NormalizarNombreEmpresa(existente));
                 if (sim > mejorSimilitud)
                 {
                     mejorSimilitud = sim;
@@ -571,19 +402,74 @@ namespace FACTicket_Scanner
                 }
             }
 
-            const double UMBRAL_SIMILITUD = 0.82;
+            const double UMBRAL_SIMILITUD = 0.65;
             if (mejorMatch != null && mejorSimilitud >= UMBRAL_SIMILITUD)
             {
-                var resultado = MessageBox.Show(
+                bool esMismaEmpresa = DialogoAutoConfirmar.Confirmar(
                     $"El nombre de empresa detectado es:\n\"{nombreEmpresaOriginal}\"\n\n" +
                     $"Ya existe una carpeta similar:\n\"{mejorMatch}\"\n\n" +
                     "¿Es la misma empresa?\n\nSí = guardar en la carpeta existente\nNo = crear una carpeta nueva",
-                    "Posible empresa duplicada", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    "Posible empresa duplicada", resultadoPorDefecto: true);
 
-                if (resultado == DialogResult.Yes) return mejorMatch;
+                if (esMismaEmpresa) return mejorMatch;
             }
 
             return candidata;
+        }
+
+        // -----------------------------------------------------------------------
+        // CIF → carpeta de empresa, leído de los datos.json ya guardados.
+        // -----------------------------------------------------------------------
+        private static Dictionary<string, string> ObtenerCifsPorEmpresa(string carpetaTickets)
+        {
+            var mapa = new Dictionary<string, string>();
+            if (!System.IO.Directory.Exists(carpetaTickets)) return mapa;
+
+            foreach (string rutaJson in System.IO.Directory.GetFiles(carpetaTickets, "datos.json", System.IO.SearchOption.AllDirectories))
+            {
+                var t = DatosTicket.CargarUnico(rutaJson);
+                if (t == null || string.IsNullOrWhiteSpace(t.Cif)) continue;
+
+                string cifNorm = NormalizarCif(t.Cif);
+                if (cifNorm.Length == 0) continue;
+
+                string carpetaFactura = System.IO.Path.GetDirectoryName(rutaJson)!;
+                string carpetaEmpresa = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(carpetaFactura)!);
+
+                if (!mapa.ContainsKey(cifNorm)) mapa[cifNorm] = carpetaEmpresa;
+            }
+            return mapa;
+        }
+
+        private static string NormalizarCif(string cif)
+        {
+            if (string.IsNullOrWhiteSpace(cif)) return "";
+            return new string(cif.ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+        }
+
+        // Conectores sin valor distintivo para identificar la empresa.
+        private static readonly HashSet<string> CONECTORES_EMPRESA = new(StringComparer.OrdinalIgnoreCase)
+        { "E", "Y", "DE", "DEL", "LA", "EL", "LOS", "LAS", "P" };
+
+        // Similitud por conjunto de palabras: ignora el orden, tolera que una
+        // de las dos sea un subconjunto de la otra (nombre comercial vs legal)
+        // y usa Levenshtein palabra a palabra para tolerar erratas de OCR.
+        private static double CalcularSimilitudPalabras(string a, string b)
+        {
+            var palabrasA = a.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => !CONECTORES_EMPRESA.Contains(p)).Distinct().ToList();
+            var palabrasB = b.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => !CONECTORES_EMPRESA.Contains(p)).Distinct().ToList();
+            if (palabrasA.Count == 0 || palabrasB.Count == 0) return 0.0;
+
+            var (cortas, largas) = palabrasA.Count <= palabrasB.Count ? (palabrasA, palabrasB) : (palabrasB, palabrasA);
+
+            int coincidencias = 0;
+            foreach (var palabra in cortas)
+            {
+                double mejor = largas.Max(p => CalcularSimilitud(palabra, p));
+                if (mejor >= 0.8) coincidencias++;
+            }
+
+            return (double)coincidencias / cortas.Count;
         }
 
         private static HashSet<string> ObtenerNombresEmpresaExistentes(string carpetaTickets)

@@ -35,6 +35,12 @@ namespace FACTicket_Scanner
         [JsonPropertyName("numero")]
         public string Numero { get; set; } = "";
 
+        // "factura", "albaran" o "ticket". Determinado por Gemini al extraer
+        // (ver GeminiAPI.MapearADatosTicket); editable en la revisión manual.
+        // Los albaranes se guardan aparte y no cuentan en gasto/IVA.
+        [JsonPropertyName("tipo_documento")]
+        public string TipoDocumento { get; set; } = "factura";
+
         [JsonPropertyName("cif")]
         public string Cif { get; set; } = "";
 
@@ -58,6 +64,11 @@ namespace FACTicket_Scanner
 
         [JsonPropertyName("iva")]
         public string Iva { get; set; } = "";
+
+        // Tipo de IVA aplicado (ej. 21), informativo. El importe en € sigue
+        // siendo el campo Iva de arriba (el que usa HtmlBuilder para sumar).
+        [JsonPropertyName("iva_porcentaje")]
+        public double IvaPorcentaje { get; set; } = 0;
 
         [JsonPropertyName("total")]
         public string Total { get; set; } = "";
