@@ -34,12 +34,19 @@ namespace FACTicket_Scanner
             Visible = false;
         }
 
-        public void Mostrar(DatosTicket datos)
+        public void Mostrar(DatosTicket datos, bool sinCuentaAtras = false)
         {
             _datosActuales = datos;
             ConstruirUi(datos);
             Visible = true;
             BringToFront();
+
+            if (sinCuentaAtras)
+            {
+                _timer.Stop();
+                _lblContador.Text = "";
+                return;
+            }
 
             _restantes = Form1.Timeout_Dialogos;
             _lblContador.Text = $"Se guardará automáticamente en {_restantes}s...";

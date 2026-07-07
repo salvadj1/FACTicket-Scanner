@@ -13,7 +13,7 @@ namespace FACTicket_Scanner
     public partial class Form1 : Form
     {
         public const int Timeout_Dialogos = 5;
-        private const string Version = " - 1.64 beta";
+        private const string Version = " - 1.80 beta";
         // -----------------------------------------------------------------------
         // Dependencias
         // -----------------------------------------------------------------------
@@ -436,7 +436,7 @@ namespace FACTicket_Scanner
             // (antes de cargar ninguna imagen); panelRevision se muestra en su
             // lugar solo mientras se revisan los datos extraídos por Gemini.
             panelAjustes = new PanelAjustesEscaneo { Dock = DockStyle.Fill };
-            panelAjustes.ValorCambiado += (s, e) => { CancelarAutoGuardadoLote(); if (modoCaptura) Reprocesar(); };
+            panelAjustes.ValorCambiado += (s, e) => { Log($"ValorCambiado: modoCaptura={modoCaptura}"); CancelarAutoGuardadoLote(); if (modoCaptura) Reprocesar(); };
             panelScrollable.Controls.Add(panelAjustes);
 
             panelRevision = new PanelRevisionTicket { Dock = DockStyle.Fill, Visible = false };
@@ -526,6 +526,7 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         private void Reprocesar()
         {
+            Log($"Reprocesar: llamado - modoCaptura={modoCaptura} fotoCapturada={(fotoCapturada == null ? "null" : "OK")}");
             if (!modoCaptura || fotoCapturada == null) return;
             Log("Reprocesar: inicio");
 
@@ -711,8 +712,9 @@ namespace FACTicket_Scanner
                 {
                     await album.EditarFacturaCompleta(rutaJsonEnCurso, copiaImgEdicion, copiaOriginalEdicion,
                         panelGuardar.chkGuardarOriginal.Checked, panelGuardar.chkGuardarJpg.Checked,
-                        panelGuardar.chkGuardarPdf.Checked);
+                        panelGuardar.chkGuardarPdf.Checked, MostrarRevisionEmbebida);
                     lblEstado.Text = "✅ Factura actualizada.";
+                    DialogoAutoConfirmar.Aviso("La factura se editó y guardó correctamente.", "Éxito", 2);
                 }
                 catch (Exception ex)
                 {
@@ -725,6 +727,8 @@ namespace FACTicket_Scanner
                     rutaJsonEdicionActual = null;
                     this.UseWaitCursor = false;
                     btnCapturar.Enabled = true;
+                    panelRevision.Visible = false;
+                    panelAjustes.Visible = true;
                     LimpiarImagenActual();
                     VolverALive();
                 }
@@ -783,7 +787,7 @@ namespace FACTicket_Scanner
             }
 
             panelRevision.RevisionCompletada += OnCompletada;
-            panelRevision.Mostrar(datos);
+            panelRevision.Mostrar(datos, sinCuentaAtras: rutaJsonEdicionActual != null);
 
             return tcs.Task;
         }

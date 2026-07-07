@@ -6,7 +6,8 @@ namespace FACTicket_Scanner
 {
     internal static class HtmlBuilder
     {
-        internal static void GenerarAlbum(string carpetaTickets, List<DatosTicket> lista, string nombreAlbum, List<string>? empresasCarpetas = null)
+        internal static void GenerarAlbum(string carpetaTickets, List<DatosTicket> lista, string nombreAlbum, List<string>? empresasCarpetas = null,
+            List<DatosTicket>? listaAlbaranes = null, List<string>? empresasCarpetasAlbaranes = null)
         {
             string rutaHtml = System.IO.Path.Combine(carpetaTickets, nombreAlbum);
             var sb = new System.Text.StringBuilder();
@@ -18,9 +19,14 @@ namespace FACTicket_Scanner
             sb.AppendLine("</style></head><body>");
             sb.AppendLine(Html());
             sb.AppendLine("<script>");
-            sb.AppendLine("const tickets=" + JsonSerializer.Serialize(lista, new JsonSerializerOptions { WriteIndented = false }) + ";");
+            sb.AppendLine("let facturasData=" + JsonSerializer.Serialize(lista, new JsonSerializerOptions { WriteIndented = false }) + ";");
+            sb.AppendLine("let albaranesData=" + JsonSerializer.Serialize(listaAlbaranes ?? new List<DatosTicket>(), new JsonSerializerOptions { WriteIndented = false }) + ";");
             // Empresas obtenidas de las carpetas en disco (no del JSON de cada ticket).
-            sb.AppendLine("const empresasCarpetas=" + JsonSerializer.Serialize(empresasCarpetas ?? new List<string>()) + ";");
+            sb.AppendLine("let empresasCarpetasFacturas=" + JsonSerializer.Serialize(empresasCarpetas ?? new List<string>()) + ";");
+            sb.AppendLine("let empresasCarpetasAlbaranes=" + JsonSerializer.Serialize(empresasCarpetasAlbaranes ?? new List<string>()) + ";");
+            sb.AppendLine("let tipoActual='facturas';");
+            sb.AppendLine("let tickets=facturasData;");
+            sb.AppendLine("let empresasCarpetas=empresasCarpetasFacturas;");
             sb.AppendLine($"const generado=\"{DateTime.Now:dd/MM/yyyy HH:mm}\";");
             sb.AppendLine(Js());
             sb.AppendLine("</script></body></html>");
@@ -80,6 +86,10 @@ namespace FACTicket_Scanner
 
     <!-- Controles -->
     <div id=""controles"">
+      <div id=""tabs-tipo"">
+        <button class=""tab-tipo activo"" onclick=""cambiarTipo('facturas',this)"">📄 Facturas</button>
+        <button class=""tab-tipo"" onclick=""cambiarTipo('albaranes',this)"">📦 Albaranes</button>
+      </div>
       <input type=""text"" id=""buscar"" placeholder=""🔍 Buscar empresa, número, CIF, fecha..."" oninput=""filtrar()"">
       <div id=""controles-fila2"">
         <div class=""ctrl-grupo"">
@@ -190,6 +200,10 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
 /* Gráfico barras trimestral */
 #grafico{width:100%;display:block;}
 #anioSel{padding:3px 6px;border:1px solid var(--borde);border-radius:6px;font-size:.8em;}
+#tabs-tipo{display:flex;gap:6px;margin-bottom:8px;}
+.tab-tipo{padding:6px 14px;border:1px solid var(--borde);border-radius:8px;background:#f8f9fa;
+  cursor:pointer;font-size:.85em;font-weight:600;color:var(--gris);}
+.tab-tipo.activo{background:var(--azul);color:#fff;border-color:var(--azul);}
 
 /* Top empresas barras horizontales */
 #grafico-empresas{display:flex;flex-direction:column;gap:6px;}
@@ -416,6 +430,28 @@ let vistaActual = 'empresa';
 let idxModal = -1;
 let listaFiltrada = [];
 let filtroEspecial = null; // null | 'sinTotal' | 'sinFecha' — activado desde Resumen
+
+/* ─── Cambio de pestaña Facturas/Albaranes ─── */
+function resetSelectores(){
+  document.getElementById('filtroAnio').innerHTML='<option value="""">Todos</option>';
+  document.getElementById('filtroEmpresa').innerHTML='<option value="""">Todas</option>';
+  document.getElementById('anioSel').innerHTML='';
+  document.getElementById('buscar').value='';
+  filtroEspecial=null;
+}
+function cambiarTipo(tipo, btn){
+  if(tipo===tipoActual) return;
+  tipoActual=tipo;
+  tickets = tipo==='albaranes' ? albaranesData : facturasData;
+  empresasCarpetas = tipo==='albaranes' ? empresasCarpetasAlbaranes : empresasCarpetasFacturas;
+  document.querySelectorAll('.tab-tipo').forEach(b=>b.classList.remove('activo'));
+  if(btn) btn.classList.add('activo');
+  resetSelectores();
+  poblarFiltros();
+  poblarSelectorAnios();
+  try{ dibujarGrafico(); filtrarTrimestre(); } catch(e){ console.error(e); }
+  filtrar();
+}
 
 /* ─── Filtros desplegables ─── */
 function poblarFiltros(){

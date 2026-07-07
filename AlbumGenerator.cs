@@ -59,6 +59,10 @@ namespace FACTicket_Scanner
             return set.OrderBy(e => e, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
+        // Misma raíz "Albaranes" usada en GuardarImagen() para separar la
+        // contabilidad de facturas y albaranes.
+        private static string CarpetaAlbaranes() => System.IO.Path.Combine(AppContext.BaseDirectory, "Albaranes");
+
         // -----------------------------------------------------------------------
         public void RegenerarAlbumInicial()
         {
@@ -67,7 +71,10 @@ namespace FACTicket_Scanner
                 string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
                 System.IO.Directory.CreateDirectory(carpetaTickets);
                 var lista = CargarTodasLasFacturas(carpetaTickets);
-                HtmlBuilder.GenerarAlbum(carpetaTickets, lista, NombreAlbum, ObtenerEmpresasDesdeCarpetas(carpetaTickets));
+                string carpetaAlbaranes = CarpetaAlbaranes();
+                var listaAlbaranes = CargarTodasLasFacturas(carpetaAlbaranes);
+                HtmlBuilder.GenerarAlbum(carpetaTickets, lista, NombreAlbum, ObtenerEmpresasDesdeCarpetas(carpetaTickets),
+                    listaAlbaranes, ObtenerEmpresasDesdeCarpetas(carpetaAlbaranes));
             }
             catch { }
         }
@@ -91,7 +98,7 @@ namespace FACTicket_Scanner
                 if (extraerConGemini)
                 {
                     actualizarEstado("⏳ Analizando con Gemini...");
-                    datos = await ExtraerConGeminiConReintento(original,5);
+                    datos = await ExtraerConGeminiConReintento(original, 5);
 
                     if (!string.IsNullOrEmpty(datos.ErrorDiagnostico))
                         DialogoAutoConfirmar.Aviso(
@@ -168,22 +175,26 @@ namespace FACTicket_Scanner
                     guardarAjustes(ajustes);
 
                     datosRevisados.ImagenRelativa = guardarJpg
-                        ? System.IO.Path.GetRelativePath(carpetaTickets, rutaProcesada).Replace('\\', '/')
+                        ? System.IO.Path.GetRelativePath(raizDestino, rutaProcesada).Replace('\\', '/')
                         : "";
                     datosRevisados.PdfRelativa = guardarPdf
-                        ? System.IO.Path.GetRelativePath(carpetaTickets, rutaPdf).Replace('\\', '/')
+                        ? System.IO.Path.GetRelativePath(raizDestino, rutaPdf).Replace('\\', '/')
                         : "";
-                    datosRevisados.JsonRelativa = System.IO.Path.GetRelativePath(carpetaTickets, rutaJsonFactura).Replace('\\', '/');
+                    datosRevisados.JsonRelativa = System.IO.Path.GetRelativePath(raizDestino, rutaJsonFactura).Replace('\\', '/');
                     datosRevisados.FechaGuardado = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                     datosRevisados.PHash = CalcularPHash(original);
 
                     DatosTicket.GuardarUnico(rutaJsonFactura, datosRevisados);
 
                     if (!esAlbaran) listaExistente.Add(datosRevisados);
-                    HtmlBuilder.GenerarAlbum(carpetaTickets, listaExistente, NombreAlbum, ObtenerEmpresasDesdeCarpetas(carpetaTickets));
+                    // Se recarga desde disco (ya incluye el recién guardado si esAlbaran==true).
+                    string carpetaAlbaranesTras = CarpetaAlbaranes();
+                    var listaAlbaranesTras = CargarTodasLasFacturas(carpetaAlbaranesTras);
+                    HtmlBuilder.GenerarAlbum(carpetaTickets, listaExistente, NombreAlbum, ObtenerEmpresasDesdeCarpetas(carpetaTickets),
+                        listaAlbaranesTras, ObtenerEmpresasDesdeCarpetas(carpetaAlbaranesTras));
 
                     actualizarEstado($"✅ Guardado: {carpetaDestino}");
-                    DialogoAutoConfirmar.Aviso($"Guardado en:\n{carpetaDestino}", "Éxito",2);
+                    DialogoAutoConfirmar.Aviso($"Guardado en:\n{carpetaDestino}", "Éxito", 2);
                 }
                 catch (Exception ex)
                 {
@@ -300,8 +311,8 @@ namespace FACTicket_Scanner
                 "Error Gemini");
             return new DatosTicket();
         }
-        
-        
+
+
         /* private static async System.Threading.Tasks.Task<DatosTicket> ExtraerConGeminiConReintento(Mat original)
          {
              try
@@ -552,7 +563,10 @@ namespace FACTicket_Scanner
             DatosTicket.GuardarUnico(rutaJsonFinal, nuevosDatos);
 
             var lista = CargarTodasLasFacturas(carpetaTickets);
-            HtmlBuilder.GenerarAlbum(carpetaTickets, lista, NombreAlbum, ObtenerEmpresasDesdeCarpetas(carpetaTickets));
+            string carpetaAlbaranesRename = CarpetaAlbaranes();
+            var listaAlbaranesRename = CargarTodasLasFacturas(carpetaAlbaranesRename);
+            HtmlBuilder.GenerarAlbum(carpetaTickets, lista, NombreAlbum, ObtenerEmpresasDesdeCarpetas(carpetaTickets),
+                listaAlbaranesRename, ObtenerEmpresasDesdeCarpetas(carpetaAlbaranesRename));
 
             return rutaJsonFinal;
         }
@@ -565,7 +579,8 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         public async System.Threading.Tasks.Task<string> EditarFacturaCompleta(
             string rutaJsonActual, Mat imagenProcesada, Mat original,
-            bool guardarOriginal, bool guardarJpg, bool guardarPdf)
+            bool guardarOriginal, bool guardarJpg, bool guardarPdf,
+            Func<DatosTicket, System.Threading.Tasks.Task<DatosTicket?>> mostrarRevisionEmbebida)
         {
             string carpetaFactura = System.IO.Path.GetDirectoryName(rutaJsonActual)!;
             var datosAntiguos = DatosTicket.CargarUnico(rutaJsonActual)
@@ -585,7 +600,10 @@ namespace FACTicket_Scanner
 
             DatosTicket nuevosDatos = await GeminiAPI.ExtraerDatosFactura(original);
 
-            return ActualizarFacturaEditada(rutaJsonActual, nuevosDatos);
+            DatosTicket? datosRevisados = await mostrarRevisionEmbebida(nuevosDatos);
+            if (datosRevisados == null) return "";
+
+            return ActualizarFacturaEditada(rutaJsonActual, datosRevisados);
         }
 
         // -----------------------------------------------------------------------

@@ -45,37 +45,74 @@ namespace FACTicket_Scanner
         public event EventHandler? ValorCambiado;
 
         private bool _construido = false;
+        // Ancho con el que se construyeron los sliders la última vez. Sirve
+        // para no reconstruir en CUALQUIER SizeChanged (p.ej. al aparecer/
+        // desaparecer la barra de scroll), sino solo cuando el ancho
+        // disponible cambia de verdad (redimensionar la ventana).
+        private int _anchoConstruido = -1;
 
         public PanelAjustesEscaneo()
         {
-            AutoScroll = true;
+            // AutoScroll = true; // ELIMINADO: el padre (panelScrollable) ya
+            // tiene AutoScroll propio. Tenerlo también aquí generaba un
+            // cálculo de ancho incorrecto (bucle de scroll anidado) que
+            // hacía que los sliders se dibujaran más anchos que el panel.
             HandleCreated += (s, e) => ConstruirSliders();
-            SizeChanged += (s, e) => { if (_construido) ConstruirSliders(); };
+            SizeChanged += (s, e) =>
+            {
+                // No reconstruir mientras el usuario tiene el ratón pulsado
+                // (arrastrando un slider): eso destruía el TrackBar bajo el
+                // cursor a mitad de arrastre, dejándolo "huérfano" y sin
+                // reflejar el cambio real. Sí reconstruir en cualquier otro
+                // cambio de tamaño real (redimensionar ventana, aparición
+                // de scrollbar, etc.) para que el layout siga ajustándose.
+                if (_construido && Control.MouseButtons == MouseButtons.None)
+                    ConstruirSliders();
+            };
             CreateControl();
         }
 
         private void ConstruirSliders()
         {
+            // Si ya existían trackbars (reconstrucción por SizeChanged), se
+            // guardan sus valores actuales para no perderlos al recrearlos.
+            bool haviaValores = _construido && trkBlock != null;
+            int vBlock = haviaValores ? trkBlock.Value : 25;
+            int vC = haviaValores ? trkC.Value : 10;
+            int vContraste = haviaValores ? trkContraste.Value : 2;
+            int vBrillo = haviaValores ? trkBrillo.Value : 0;
+            int vRuido = haviaValores ? trkRuido.Value : 1;
+            int vNitidez = haviaValores ? trkNitidez.Value : 0;
+            int vGrueso = haviaValores ? trkGrueso.Value : 0;
+            int vUmbral = haviaValores ? trkUmbral.Value : 0;
+            int vMargen = haviaValores ? trkMargen.Value : 5;
+            int vMargenSup = haviaValores ? trkMargenSup.Value : 0;
+            int vMargenInf = haviaValores ? trkMargenInf.Value : 0;
+            int vMargenIzq = haviaValores ? trkMargenIzq.Value : 0;
+            int vMargenDer = haviaValores ? trkMargenDer.Value : 0;
+            bool vEdicionManual = haviaValores && chkEdicionManual != null && chkEdicionManual.Checked;
+
             _construido = true;
+            _anchoConstruido = ClientSize.Width;
             Controls.Clear();
 
             int wTotal = ClientSize.Width - 16;
             if (wTotal < 200) wTotal = 200;
 
             int y = 8;
-            (trkBlock, valBlock) = Slider("Detalle:", y, 1, 40, 25, 2); y += 26;
-            (trkC, valC) = Slider("Brillo/C:", y, -20, 20, 10, 4); y += 26;
-            (trkContraste, valContraste) = Slider("CLAHE (clipLimit):", y, 0, 8, 2, 1); y += 26;
-            (trkBrillo, valBrillo) = Slider("Brillo imagen:", y, -50, 50, 0, 10); y += 26;
-            (trkRuido, valRuido) = Slider("Reducir ruido:", y, 0, 4, 1, 1); y += 26;
-            (trkNitidez, valNitidez) = Slider("Nitidez (post):", y, 0, 3, 0, 1); y += 26;
-            (trkGrueso, valGrueso) = Slider("Grosor texto:", y, -3, 3, 0, 1); y += 26;
-            (trkUmbral, valUmbral) = Slider("Umbral fijo:", y, 0, 254, 0, 20); y += 26;
-            (trkMargen, valMargen) = Slider("Sensib. recorte:", y, 1, 30, 5, 5); y += 26;
-            (trkMargenSup, valMargenSup) = Slider("Margen sup. (%):", y, 0, 50, 0, 5); y += 26;
-            (trkMargenInf, valMargenInf) = Slider("Margen inf. (%):", y, 0, 50, 0, 5); y += 26;
-            (trkMargenIzq, valMargenIzq) = Slider("Margen izq. (%):", y, 0, 50, 0, 5); y += 26;
-            (trkMargenDer, valMargenDer) = Slider("Margen der. (%):", y, 0, 50, 0, 5); y += 26;
+            (trkBlock, valBlock) = Slider("Detalle:", y, 1, 40, vBlock, 2); y += 26;
+            (trkC, valC) = Slider("Brillo/C:", y, -20, 20, vC, 4); y += 26;
+            (trkContraste, valContraste) = Slider("CLAHE (clipLimit):", y, 0, 8, vContraste, 1); y += 26;
+            (trkBrillo, valBrillo) = Slider("Brillo imagen:", y, -50, 50, vBrillo, 10); y += 26;
+            (trkRuido, valRuido) = Slider("Reducir ruido:", y, 0, 4, vRuido, 1); y += 26;
+            (trkNitidez, valNitidez) = Slider("Nitidez (post):", y, 0, 3, vNitidez, 1); y += 26;
+            (trkGrueso, valGrueso) = Slider("Grosor texto:", y, -3, 3, vGrueso, 1); y += 26;
+            (trkUmbral, valUmbral) = Slider("Umbral fijo:", y, 0, 254, vUmbral, 20); y += 26;
+            (trkMargen, valMargen) = Slider("Sensib. recorte:", y, 1, 30, vMargen, 5); y += 26;
+            (trkMargenSup, valMargenSup) = Slider("Margen sup. (%):", y, 0, 50, vMargenSup, 5); y += 26;
+            (trkMargenInf, valMargenInf) = Slider("Margen inf. (%):", y, 0, 50, vMargenInf, 5); y += 26;
+            (trkMargenIzq, valMargenIzq) = Slider("Margen izq. (%):", y, 0, 50, vMargenIzq, 5); y += 26;
+            (trkMargenDer, valMargenDer) = Slider("Margen der. (%):", y, 0, 50, vMargenDer, 5); y += 26;
 
             chkEdicionManual = new CheckBox
             {
@@ -84,7 +121,8 @@ namespace FACTicket_Scanner
                 Width = wTotal,
                 AutoSize = false,
                 Height = 22,
-                Text = "Edición manual (sin recorte automático)"
+                Text = "Edición manual (sin recorte automático)",
+                Checked = vEdicionManual
             };
             chkEdicionManual.CheckedChanged += (s, e) => ValorCambiado?.Invoke(this, EventArgs.Empty);
             Controls.Add(chkEdicionManual);
