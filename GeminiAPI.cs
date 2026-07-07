@@ -25,6 +25,15 @@ namespace FACTicket_Scanner
 
         [JsonPropertyName("apiKey")]
         public string ApiKey { get; set; } = "";
+
+        [JsonPropertyName("ultimoAcceso")]
+        public string UltimoAcceso { get; set; } = "";
+
+        [JsonPropertyName("ultimoFallo")]
+        public string UltimoFallo { get; set; } = "";
+
+        [JsonPropertyName("peticionesOk")]
+        public int PeticionesOk { get; set; } = 0;
     }
 
     // -----------------------------------------------------------------------
@@ -126,7 +135,8 @@ Primero identifica el TIPO de documento:
 - ""factura"": lleva desglose de base imponible, IVA y total a pagar.
 - ""albaran"": es un documento de entrega/recepción de mercancía, normalmente SIN desglose de IVA ni importe total a pagar (puede decir ""Albarán"", ""Nota de entrega"", etc.).
 - ""ticket"": recibo simplificado de compra (comercio, gasolinera...).
-Si tiene desglose de IVA y total, es ""factura"" aunque también diga entrega de mercancía.
+Si el documento se titula literalmente ""Albarán"" o ""Nota de entrega"", es ""albaran"" aunque incluya precios, importes o un total (muchos albaranes sí los llevan, sin ser por eso una factura formal).
+Solo es ""factura"" si además lleva un desglose formal de base imponible + IVA (o se titula ""Factura""/""Factura simplificada"").
 Devuelve ÚNICAMENTE un JSON válido sin texto adicional ni bloques de código markdown, con esta estructura exacta:
 {
   ""tipo_documento"": ""factura"",
@@ -173,25 +183,59 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
             string responseBody = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
-                throw new Exception($"Error API Gemini: {response.StatusCode} - {responseBody}");
-
-            using var doc = JsonDocument.Parse(responseBody);
-            string rawJson = doc.RootElement
-                .GetProperty("candidates")[0]
-                .GetProperty("content")
-                .GetProperty("parts")[0]
-                .GetProperty("text")
-                .GetString() ?? "{}";
-
-            // Limpiar posibles bloques de código que Gemini pueda devolver
-            rawJson = rawJson.Trim();
-            if (rawJson.StartsWith("```"))
             {
-                rawJson = rawJson.Substring(rawJson.IndexOf('\n') + 1);
-                rawJson = rawJson.Substring(0, rawJson.LastIndexOf("```")).Trim();
+                RegistrarAccesoApi(apiActiva.Nombre, exito: false);
+                throw new Exception($"Error API Gemini: {response.StatusCode} - {responseBody}");
             }
 
-            return MapearADatosTicket(rawJson);
+            try
+            {
+                using var doc = JsonDocument.Parse(responseBody);
+                string rawJson = doc.RootElement
+                    .GetProperty("candidates")[0]
+                    .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text")
+                    .GetString() ?? "{}";
+
+                // Limpiar posibles bloques de código que Gemini pueda devolver
+                rawJson = rawJson.Trim();
+                if (rawJson.StartsWith("```"))
+                {
+                    rawJson = rawJson.Substring(rawJson.IndexOf('\n') + 1);
+                    rawJson = rawJson.Substring(0, rawJson.LastIndexOf("```")).Trim();
+                }
+
+                var resultado = MapearADatosTicket(rawJson);
+                RegistrarAccesoApi(apiActiva.Nombre, exito: true);
+                return resultado;
+            }
+            catch
+            {
+                RegistrarAccesoApi(apiActiva.Nombre, exito: false);
+                throw;
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // Anota en apis.json la fecha de último acceso (éxito) o último fallo
+        // de la API indicada por nombre.
+        // -----------------------------------------------------------------------
+        private static void RegistrarAccesoApi(string nombreApi, bool exito)
+        {
+            try
+            {
+                var lista = CargarApis();
+                var api = lista.Apis.FirstOrDefault(a => a.Nombre == nombreApi);
+                if (api == null) return;
+
+                string ahora = DateTime.Now.ToString("o");
+                if (exito) { api.UltimoAcceso = ahora; api.PeticionesOk++; }
+                else api.UltimoFallo = ahora;
+
+                GuardarApis(lista);
+            }
+            catch { }
         }
 
         // -----------------------------------------------------------------------
@@ -204,13 +248,38 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
         private static string NormalizarFecha(string fecha)
         {
             if (string.IsNullOrWhiteSpace(fecha)) return fecha;
+
             var m = System.Text.RegularExpressions.Regex.Match(fecha, @"^(\d{2})[-/.](\d{2})[-/.](\d{2,4})$");
-            if (!m.Success) return fecha;
-            string dia = m.Groups[1].Value;
-            string mes = m.Groups[2].Value;
-            string anio = m.Groups[3].Value;
-            if (anio.Length == 2) anio = "20" + anio;
-            return $"{dia}/{mes}/{anio}";
+            if (m.Success)
+            {
+                string dia = m.Groups[1].Value;
+                string mes = m.Groups[2].Value;
+                string anio = m.Groups[3].Value;
+                if (anio.Length == 2) anio = "20" + anio;
+                return $"{dia}/{mes}/{anio}";
+            }
+
+            // Formato "23 Abril 2026" / "23 de Abril de 2026" (Gemini a veces
+            // devuelve el mes en texto en vez de numérico).
+            var mTexto = System.Text.RegularExpressions.Regex.Match(
+                fecha, @"^(\d{1,2})\s*(?:de\s+)?([A-Za-zÁÉÍÓÚáéíóú]+)\s*(?:de\s+)?(\d{4})$");
+            if (mTexto.Success)
+            {
+                var meses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    {"enero","01"},{"febrero","02"},{"marzo","03"},{"abril","04"},
+                    {"mayo","05"},{"junio","06"},{"julio","07"},{"agosto","08"},
+                    {"septiembre","09"},{"setiembre","09"},{"octubre","10"},
+                    {"noviembre","11"},{"diciembre","12"}
+                };
+                if (meses.TryGetValue(mTexto.Groups[2].Value, out string? mesNum))
+                {
+                    string dia = mTexto.Groups[1].Value.PadLeft(2, '0');
+                    return $"{dia}/{mesNum}/{mTexto.Groups[3].Value}";
+                }
+            }
+
+            return fecha;
         }
 
         private static DatosTicket MapearADatosTicket(string rawJson)
@@ -322,7 +391,7 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
             using var dlg = new Form
             {
                 Text = "Gestión de APIs",
-                Width = 560,
+                Width = 820,
                 Height = 420,
                 FormBorderStyle = FormBorderStyle.FixedDialog,
                 StartPosition = FormStartPosition.CenterScreen,
@@ -330,41 +399,49 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
                 MinimizeBox = false
             };
 
-            var lstApis = new ListBox { Left = 20, Top = 20, Width = 300, Height = 300 };
+            var lstApis = new ListView { Left = 20, Top = 20, Width = 520, Height = 300, View = View.Details, FullRowSelect = true, GridLines = true };
+            lstApis.Columns.Add("Nombre", 140);
+            lstApis.Columns.Add("Último acceso", 170);
+            lstApis.Columns.Add("Último fallo", 170);
+            lstApis.Columns.Add("Peticiones OK", 100);
             void RefrescarLista(string? seleccionar = null)
             {
                 lstApis.Items.Clear();
                 foreach (var a in lista.Apis)
                 {
                     string etiqueta = a.Nombre == lista.ActivaNombre ? $"● {a.Nombre} (activa)" : a.Nombre;
-                    lstApis.Items.Add(etiqueta);
+                    var item = new ListViewItem(etiqueta);
+                    item.SubItems.Add(FormatearFechaRelativa(a.UltimoAcceso));
+                    item.SubItems.Add(FormatearFechaRelativa(a.UltimoFallo));
+                    item.SubItems.Add(a.PeticionesOk.ToString());
+                    lstApis.Items.Add(item);
                 }
                 if (seleccionar != null)
                 {
                     int idx = lista.Apis.FindIndex(a => a.Nombre == seleccionar);
-                    if (idx >= 0) lstApis.SelectedIndex = idx;
+                    if (idx >= 0) lstApis.Items[idx].Selected = true;
                 }
             }
             RefrescarLista();
             dlg.Controls.Add(lstApis);
 
-            var btnActivar = new Button { Text = "Usar esta", Left = 340, Top = 20, Width = 180, Height = 30 };
-            var btnAnadir = new Button { Text = "Añadir nueva", Left = 340, Top = 60, Width = 180, Height = 30 };
-            var btnEditar = new Button { Text = "Editar", Left = 340, Top = 100, Width = 180, Height = 30 };
-            var btnEliminar = new Button { Text = "Eliminar", Left = 340, Top = 140, Width = 180, Height = 30 };
+            var btnActivar = new Button { Text = "Usar esta", Left = 560, Top = 20, Width = 180, Height = 30 };
+            var btnAnadir = new Button { Text = "Añadir nueva", Left = 560, Top = 60, Width = 180, Height = 30 };
+            var btnEditar = new Button { Text = "Editar", Left = 560, Top = 100, Width = 180, Height = 30 };
+            var btnEliminar = new Button { Text = "Eliminar", Left = 560, Top = 140, Width = 180, Height = 30 };
             dlg.Controls.Add(btnActivar);
             dlg.Controls.Add(btnAnadir);
             dlg.Controls.Add(btnEditar);
             dlg.Controls.Add(btnEliminar);
 
-            var btnCerrar = new Button { Text = "Cerrar", Left = 340, Top = 330, Width = 180, Height = 30, DialogResult = DialogResult.Cancel };
+            var btnCerrar = new Button { Text = "Cerrar", Left = 560, Top = 330, Width = 180, Height = 30, DialogResult = DialogResult.Cancel };
             dlg.Controls.Add(btnCerrar);
             dlg.CancelButton = btnCerrar;
 
             btnActivar.Click += (s, e) =>
             {
-                if (lstApis.SelectedIndex < 0) return;
-                lista.ActivaNombre = lista.Apis[lstApis.SelectedIndex].Nombre;
+                if (lstApis.SelectedIndices.Count == 0) return;
+                lista.ActivaNombre = lista.Apis[lstApis.SelectedIndices[0]].Nombre;
                 GuardarApis(lista);
                 RefrescarLista(lista.ActivaNombre);
             };
@@ -386,12 +463,12 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
 
             btnEditar.Click += (s, e) =>
             {
-                if (lstApis.SelectedIndex < 0) return;
-                var actual = lista.Apis[lstApis.SelectedIndex];
+                if (lstApis.SelectedIndices.Count == 0) return;
+                var actual = lista.Apis[lstApis.SelectedIndices[0]];
                 var editada = MostrarDialogoEditarApi(actual);
                 if (editada == null) return;
                 string nombreActivaPrevia = lista.ActivaNombre;
-                lista.Apis[lstApis.SelectedIndex] = editada;
+                lista.Apis[lstApis.SelectedIndices[0]] = editada;
                 if (nombreActivaPrevia == actual.Nombre) lista.ActivaNombre = editada.Nombre;
                 GuardarApis(lista);
                 RefrescarLista(editada.Nombre);
@@ -399,13 +476,13 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
 
             btnEliminar.Click += (s, e) =>
             {
-                if (lstApis.SelectedIndex < 0) return;
-                var actual = lista.Apis[lstApis.SelectedIndex];
+                if (lstApis.SelectedIndices.Count == 0) return;
+                var actual = lista.Apis[lstApis.SelectedIndices[0]];
                 var confirmar = MessageBox.Show($"¿Eliminar la API \"{actual.Nombre}\"?", "Confirmar",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (confirmar != DialogResult.Yes) return;
 
-                lista.Apis.RemoveAt(lstApis.SelectedIndex);
+                lista.Apis.RemoveAt(lstApis.SelectedIndices[0]);
                 if (lista.ActivaNombre == actual.Nombre)
                     lista.ActivaNombre = lista.Apis.FirstOrDefault()?.Nombre ?? "";
                 GuardarApis(lista);
@@ -413,6 +490,31 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
             };
 
             dlg.ShowDialog(owner);
+        }
+
+        // -----------------------------------------------------------------------
+        // Formatea una fecha ISO guardada como "dd/MM/yyyy - hace X días/horas/
+        // minutos/segundos". Devuelve "—" si está vacía o no es parseable.
+        // -----------------------------------------------------------------------
+        private static string FormatearFechaRelativa(string fechaIso)
+        {
+            if (string.IsNullOrWhiteSpace(fechaIso)) return "—";
+            if (!DateTime.TryParse(fechaIso, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.RoundtripKind, out DateTime fecha))
+                return "—";
+
+            TimeSpan transcurrido = DateTime.Now - fecha;
+            string relativo;
+            if (transcurrido.TotalDays >= 1)
+                relativo = $"hace {(int)transcurrido.TotalDays} día{((int)transcurrido.TotalDays == 1 ? "" : "s")}";
+            else if (transcurrido.TotalHours >= 1)
+                relativo = $"hace {(int)transcurrido.TotalHours} hora{((int)transcurrido.TotalHours == 1 ? "" : "s")}";
+            else if (transcurrido.TotalMinutes >= 1)
+                relativo = $"hace {(int)transcurrido.TotalMinutes} minuto{((int)transcurrido.TotalMinutes == 1 ? "" : "s")}";
+            else
+                relativo = $"hace {Math.Max(0, (int)transcurrido.TotalSeconds)} segundo{((int)transcurrido.TotalSeconds == 1 ? "" : "s")}";
+
+            return $"{fecha:dd/MM/yyyy} - {relativo}";
         }
 
         // -----------------------------------------------------------------------
@@ -466,7 +568,10 @@ Si un campo no aparece en el documento, déjalo vacío o a 0. No inventes datos.
             {
                 Nombre = txtNombre.Text.Trim(),
                 Url = txtUrl.Text.Trim(),
-                ApiKey = txtKey.Text.Trim()
+                ApiKey = txtKey.Text.Trim(),
+                UltimoAcceso = existente?.UltimoAcceso ?? "",
+                UltimoFallo = existente?.UltimoFallo ?? "",
+                PeticionesOk = existente?.PeticionesOk ?? 0
             };
         }
     }

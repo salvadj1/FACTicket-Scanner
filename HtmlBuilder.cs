@@ -118,13 +118,10 @@ namespace FACTicket_Scanner
 <div id=""modal"">
   <div id=""modal-inner"">
     <div id=""modal-header"">
-      <div id=""modal-nav"">
-        <button onclick=""navModal(-1)"" title=""Anterior (misma empresa)"">◀</button>
-        <span id=""modal-titulo""></span>
-        <button onclick=""navModal(1)"" title=""Siguiente (misma empresa)"">▶</button>
-        <button id=""modal-editar"" onclick=""editarFoto()"" title=""Editar imagen"">✏️</button>
-        <button id=""modal-cerrar"" onclick=""cerrarModal()"" title=""Cerrar"">✕</button>
-      </div>
+      <!-- modal-nav eliminado: los controles nativos viven ahora en
+           panelBarraVisor (WinForms): btnAnteriorVisor/btnSiguienteVisor/
+           btnEditarVisor/btnEliminarVisor/btnCerrarModalVisor en Form1. -->
+      <div id=""modal-nav"" style=""display:none""></div>
     </div>
     <div id=""modal-body"">
       <div id=""modal-img-wrap"">
@@ -186,6 +183,9 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
 .stat-row.verde .val{color:var(--verde);}
 .stat-row.rojo .val{color:var(--rojo);}
 .stat-row.azul .val{color:var(--azul);}
+.stat-row.clicable{cursor:pointer;}
+.stat-row.clicable:hover{background:#eef1f4;}
+.stat-row.clicable.activo{background:#dbe7fb;}
 
 /* Gráfico barras trimestral */
 #grafico{width:100%;display:block;}
@@ -415,6 +415,7 @@ function empresaCarpeta(t){
 let vistaActual = 'empresa';
 let idxModal = -1;
 let listaFiltrada = [];
+let filtroEspecial = null; // null | 'sinTotal' | 'sinFecha' — activado desde Resumen
 
 /* ─── Filtros desplegables ─── */
 function poblarFiltros(){
@@ -437,15 +438,23 @@ function renderStats(lista){
   const sinTotal = lista.filter(t=>!t.total||num(t.total)===0).length;
   const sinFecha = lista.filter(t=>mesFecha(t)===0).length; // no aparecen en gráficos trimestrales
   const rows = [
-    ['Gasto total', eur(total), 'azul'],
-    ['Documentos', lista.length, ''],
-    ['Empresas', empresas.size, ''],
-    ['Sin importe', sinTotal, sinTotal>0?'rojo':''],
-    ['Sin fecha (excl. gráficos)', sinFecha, sinFecha>0?'naranja':''],
+    ['Gasto total', eur(total), 'azul', null],
+    ['Documentos', lista.length, '', null],
+    ['Empresas', empresas.size, '', null],
+    ['Sin importe', sinTotal, sinTotal>0?'rojo':'', sinTotal>0?'sinTotal':null],
+    ['Sin fecha (excl. gráficos)', sinFecha, sinFecha>0?'naranja':'', sinFecha>0?'sinFecha':null],
   ];
-  document.getElementById('stats').innerHTML = rows.map(([l,v,c])=>
-    `<div class=""stat-row ${c}""><span class=""lbl"">${l}</span><span class=""val"">${v}</span></div>`
-  ).join('');
+  document.getElementById('stats').innerHTML = rows.map(([l,v,c,accion])=>{
+    const clic = accion ? ` clicable${filtroEspecial===accion?' activo':''}"" onclick=""filtrarEspecial('${accion}')""` : '""';
+    return `<div class=""stat-row ${c}${clic}><span class=""lbl"">${l}</span><span class=""val"">${v}</span></div>`;
+  }).join('');
+}
+
+// Alterna el filtro especial (sinTotal/sinFecha) desde Resumen: un segundo
+// clic sobre la misma fila lo quita.
+function filtrarEspecial(tipo){
+  filtroEspecial = (filtroEspecial===tipo) ? null : tipo;
+  filtrar();
 }
 
 /* ─── Gráfico trimestral (canvas) ─── */
@@ -597,7 +606,10 @@ function filtrar(){
       ||(t.items||[]).some(i=>(i.descripcion||'').toLowerCase().includes(q));
     const okA = !anio || anioFecha(t)===anio;
     const okE = !empresa || empresaCarpeta(t)===empresa;
-    return okQ && okA && okE;
+    const okEsp = !filtroEspecial
+      || (filtroEspecial==='sinTotal' && (!t.total||num(t.total)===0))
+      || (filtroEspecial==='sinFecha' && mesFecha(t)===0);
+    return okQ && okA && okE && okEsp;
   });
   document.getElementById('contador').textContent = listaFiltrada.length+' resultado(s)';
   renderStats(listaFiltrada);
@@ -663,8 +675,33 @@ function tarjetaHtml(t){
   </div>`;
 }
 
+let ordenListaCol=null, ordenListaAsc=true;
+function ordenarLista(col){
+  if(ordenListaCol===col) ordenListaAsc=!ordenListaAsc; else { ordenListaCol=col; ordenListaAsc=true; }
+  renderizar(listaFiltrada);
+}
 function renderLista(lista,c){
-  const filas=lista.map(t=>{
+  listaFiltrada=lista;
+  let ordenada=lista;
+  if(ordenListaCol){
+    const getters={
+      empresa:t=>(t.empresa||'').toLowerCase(),
+      fecha:t=>claveOrden(t.fecha),
+      numero:t=>(t.numero||'').toLowerCase(),
+      cif:t=>(t.cif||'').toLowerCase(),
+      total:t=>num(t.total),
+      iva:t=>num(t.iva),
+      tipo:t=>(t.tipo_documento||'').toLowerCase(),
+      metodo_pago:t=>(t.metodo_pago||'').toLowerCase()
+    };
+    const get=getters[ordenListaCol];
+    ordenada=[...lista].sort((a,b)=>{
+      const va=get(a), vb=get(b);
+      const cmp= va<vb?-1:va>vb?1:0;
+      return ordenListaAsc?cmp:-cmp;
+    });
+  }
+  const filas=ordenada.map(t=>{
     const idx=tickets.indexOf(t);
     const tieneTotal=t.total&&t.total.toString().trim()!=='';
     return `<tr onclick=""abrirModal(${idx})"">
@@ -672,14 +709,23 @@ function renderLista(lista,c){
       <td>${t.fecha||'—'}</td>
       <td>${t.numero||'—'}</td>
       <td>${t.cif||'—'}</td>
+      <td>${t.tipo_documento||'—'}</td>
+      <td style=""text-align:right"">${t.iva?eur(num(t.iva)):'—'}</td>
       <td style=""text-align:right;font-weight:600;color:${tieneTotal?'#137333':'#c5221f'}"">${tieneTotal?eur(num(t.total)):'—'}</td>
       <td>${t.metodo_pago||'—'}</td>
     </tr>`;
   }).join('');
+  const flecha=col=> ordenListaCol===col ? (ordenListaAsc?' ▲':' ▼') : '';
   c.innerHTML=`<table id=""tabla-lista"">
     <thead><tr>
-      <th>Empresa</th><th>Fecha</th><th>Nº Factura</th>
-      <th>CIF</th><th style=""text-align:right"">Total</th><th>Pago</th>
+      <th onclick=""ordenarLista('empresa')"" style=""cursor:pointer"">Empresa${flecha('empresa')}</th>
+      <th onclick=""ordenarLista('fecha')"" style=""cursor:pointer"">Fecha${flecha('fecha')}</th>
+      <th onclick=""ordenarLista('numero')"" style=""cursor:pointer"">Nº Factura${flecha('numero')}</th>
+      <th onclick=""ordenarLista('cif')"" style=""cursor:pointer"">CIF${flecha('cif')}</th>
+      <th onclick=""ordenarLista('tipo')"" style=""cursor:pointer"">Tipo${flecha('tipo')}</th>
+      <th onclick=""ordenarLista('iva')"" style=""text-align:right;cursor:pointer"">IVA${flecha('iva')}</th>
+      <th onclick=""ordenarLista('total')"" style=""text-align:right;cursor:pointer"">Total${flecha('total')}</th>
+      <th onclick=""ordenarLista('metodo_pago')"" style=""cursor:pointer"">Pago${flecha('metodo_pago')}</th>
     </tr></thead>
     <tbody>${filas}</tbody>
   </table>`;
@@ -755,7 +801,11 @@ function abrirModal(idx){
   // Avisa a WinForms (panelBarraVisor) qué factura está abierta, para que
   // los botones nativos ◀ ▶ ✏️ sepan sobre qué imagen/json actuar.
   if(window.chrome && window.chrome.webview){
-    window.chrome.webview.postMessage({imagen: tickets[idx].imagen||'', json: tickets[idx].json||''});
+    window.chrome.webview.postMessage({
+      accion: 'abrir',
+      imagen: tickets[idx].imagen||'', json: tickets[idx].json||'',
+      empresa: tickets[idx].empresa||'(sin empresa)', fecha: tickets[idx].fecha||'—'
+    });
   }
   // Relee el JSON real del disco por si se editó fuera de la app; si falla
   // (bloqueo file://, borrado, etc.) se queda con los datos ya cacheados.
@@ -768,7 +818,7 @@ function abrirModal(idx){
 }
 
 function renderModal(t, idx){
-  document.getElementById('modal-titulo').textContent=(t.empresa||'(sin empresa)')+' · '+(t.fecha||'—');
+  // título ahora lo pinta lblTituloModal (Form1), vía postMessage en abrirModal()
   const foto=document.getElementById('modal-foto');
   const sinImg=document.getElementById('modal-sin-img');
   if(t.imagen){ foto.src=t.imagen; foto.style.display=''; sinImg.style.display='none'; }
@@ -832,10 +882,29 @@ function navModal(dir){
   if(nuevaPos>=0 && nuevaPos<grupo.length) abrirModal(grupo[nuevaPos]);
 }
 
+// Consulta directa (sin depender del postMessage) de qué factura está
+// realmente abierta ahora mismo en el modal. La usan btnEditarVisor/
+// btnEliminarVisor desde WinForms para no fiarse de un estado cacheado
+// que puede no haberse actualizado si el postMessage de abrirModal() se
+// perdió o llegó tarde.
+function datosModalActual(){
+  if(idxModal===undefined || idxModal===null || idxModal<0 || !tickets[idxModal]) return '';
+  return JSON.stringify({
+    imagen: tickets[idxModal].imagen||'', json: tickets[idxModal].json||'',
+    empresa: tickets[idxModal].empresa||'', fecha: tickets[idxModal].fecha||'',
+    numero: tickets[idxModal].numero||'', total: tickets[idxModal].total||''
+  });
+}
+
 // Abre la imagen original en una pestaña nueva para poder editarla. Un
 // navegador no puede lanzar un editor externo directamente: desde ahí el
 // usuario puede usar ""Guardar como"" o ""Abrir con"" de su sistema.
-function cerrarModal(){ document.getElementById('modal').classList.remove('activo'); }
+function cerrarModal(){
+  document.getElementById('modal').classList.remove('activo');
+  if(window.chrome && window.chrome.webview){
+    window.chrome.webview.postMessage({accion: 'cerrar'});
+  }
+}
 document.getElementById('modal').addEventListener('click',function(e){ if(e.target===this) cerrarModal(); });
 document.addEventListener('keydown',function(e){
   if(!document.getElementById('modal').classList.contains('activo')) return;

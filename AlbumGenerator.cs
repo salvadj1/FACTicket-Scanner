@@ -91,7 +91,7 @@ namespace FACTicket_Scanner
                 if (extraerConGemini)
                 {
                     actualizarEstado("⏳ Analizando con Gemini...");
-                    datos = await ExtraerConGeminiConReintento(original);
+                    datos = await ExtraerConGeminiConReintento(original,5);
 
                     if (!string.IsNullOrEmpty(datos.ErrorDiagnostico))
                         DialogoAutoConfirmar.Aviso(
@@ -121,8 +121,18 @@ namespace FACTicket_Scanner
                 string subcarpetaEmpresa;
                 if (!string.IsNullOrWhiteSpace(datosRevisados.Empresa))
                 {
-                    subcarpetaEmpresa = ResolverCarpetaEmpresa(carpetaTickets, datosRevisados.Empresa, datosRevisados.Cif);
+                    var resolucionCarpeta = ResolverCarpetaEmpresa(carpetaTickets, datosRevisados.Empresa, datosRevisados.Cif);
+                    subcarpetaEmpresa = resolucionCarpeta.carpeta;
+                    bool requiereRevision = resolucionCarpeta.requiereRevision;
                     datosRevisados.Empresa = subcarpetaEmpresa; // mismo nombre canónico en carpeta y JSON
+
+                    if (requiereRevision)
+                    {
+                        DatosTicket? datosReRevisados = await mostrarRevisionEmbebida(datosRevisados);
+                        if (datosReRevisados == null) { actualizarEstado("Guardado cancelado"); return; }
+                        datosRevisados = datosReRevisados;
+                        datosRevisados.Empresa = subcarpetaEmpresa;
+                    }
                 }
                 else
                 {
@@ -165,6 +175,7 @@ namespace FACTicket_Scanner
                         : "";
                     datosRevisados.JsonRelativa = System.IO.Path.GetRelativePath(carpetaTickets, rutaJsonFactura).Replace('\\', '/');
                     datosRevisados.FechaGuardado = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                    datosRevisados.PHash = CalcularPHash(original);
 
                     DatosTicket.GuardarUnico(rutaJsonFactura, datosRevisados);
 
@@ -172,7 +183,7 @@ namespace FACTicket_Scanner
                     HtmlBuilder.GenerarAlbum(carpetaTickets, listaExistente, NombreAlbum, ObtenerEmpresasDesdeCarpetas(carpetaTickets));
 
                     actualizarEstado($"✅ Guardado: {carpetaDestino}");
-                    DialogoAutoConfirmar.Aviso($"Guardado en:\n{carpetaDestino}", "Éxito");
+                    DialogoAutoConfirmar.Aviso($"Guardado en:\n{carpetaDestino}", "Éxito",2);
                 }
                 catch (Exception ex)
                 {
@@ -259,33 +270,65 @@ namespace FACTicket_Scanner
         // Extrae datos con Gemini. Si falla, abre el gestor de APIs para que
         // el usuario elija/edite otra clave y reintenta automáticamente.
         // -----------------------------------------------------------------------
-        private static async System.Threading.Tasks.Task<DatosTicket> ExtraerConGeminiConReintento(Mat original)
+
+        private static async System.Threading.Tasks.Task<DatosTicket> ExtraerConGeminiConReintento(Mat original, int maxReintentos = 1)
         {
-            try
-            {
-                return await System.Threading.Tasks.Task.Run(() => GeminiAPI.ExtraerDatosFactura(original));
-            }
-            catch (Exception exGemini)
-            {
-                DialogoAutoConfirmar.Aviso(
-                    $"No se pudo extraer datos con Gemini:\n\n{exGemini.Message}\n\nElige otra API key para reintentar.",
-                    "Error Gemini");
+            Exception? ultimoError = null;
 
-                GeminiAPI.AbrirGestionApis();
-
+            for (int intento = 1; intento <= maxReintentos; intento++)
+            {
                 try
                 {
                     return await System.Threading.Tasks.Task.Run(() => GeminiAPI.ExtraerDatosFactura(original));
                 }
-                catch (Exception exReintento)
+                catch (Exception ex)
                 {
-                    DialogoAutoConfirmar.Aviso(
-                        $"Sigue sin poder extraer datos con Gemini:\n\n{exReintento.Message}\n\nRellena los datos manualmente.",
-                        "Error Gemini");
-                    return new DatosTicket();
+                    ultimoError = ex;
+
+                    if (intento < maxReintentos)
+                    {
+                        DialogoAutoConfirmar.Aviso(
+                            $"No se pudo extraer datos con Gemini (intento {intento}/{maxReintentos}):\n\n{ex.Message}\n\nElige otra API key para reintentar.",
+                            "Error Gemini");
+                        GeminiAPI.AbrirGestionApis();
+                    }
                 }
             }
+
+            DialogoAutoConfirmar.Aviso(
+                $"Sigue sin poder extraer datos con Gemini:\n\n{ultimoError?.Message}\n\nRellena los datos manualmente.",
+                "Error Gemini");
+            return new DatosTicket();
         }
+        
+        
+        /* private static async System.Threading.Tasks.Task<DatosTicket> ExtraerConGeminiConReintento(Mat original)
+         {
+             try
+             {
+                 return await System.Threading.Tasks.Task.Run(() => GeminiAPI.ExtraerDatosFactura(original));
+             }
+             catch (Exception exGemini)
+             {
+                 DialogoAutoConfirmar.Aviso(
+                     $"No se pudo extraer datos con Gemini:\n\n{exGemini.Message}\n\nElige otra API key para reintentar.",
+                     "Error Gemini");
+
+                 GeminiAPI.AbrirGestionApis();
+
+                 try
+                 {
+                     return await System.Threading.Tasks.Task.Run(() => GeminiAPI.ExtraerDatosFactura(original));
+                 }
+                 catch (Exception exReintento)
+                 {
+                     DialogoAutoConfirmar.Aviso(
+                         $"Sigue sin poder extraer datos con Gemini:\n\n{exReintento.Message}\n\nRellena los datos manualmente.",
+                         "Error Gemini");
+                     return new DatosTicket();
+                 }
+             }
+         }*/
 
         // -----------------------------------------------------------------------
         private static string SanearNombreCarpeta(string nombre)
@@ -362,10 +405,10 @@ namespace FACTicket_Scanner
         // real. Sin diccionario canónico: se compara contra las carpetas ya
         // presentes en disco cada vez.
         // -----------------------------------------------------------------------
-        private static string ResolverCarpetaEmpresa(string carpetaTickets, string nombreEmpresaOriginal, string cifOriginal)
+        private static (string carpeta, bool requiereRevision) ResolverCarpetaEmpresa(string carpetaTickets, string nombreEmpresaOriginal, string cifOriginal)
         {
             string candidata = SanearNombreCarpeta(nombreEmpresaOriginal);
-            if (string.IsNullOrWhiteSpace(candidata)) return "Sin_empresa";
+            if (string.IsNullOrWhiteSpace(candidata)) return (candidata: "Sin_empresa", requiereRevision: false);
 
             // 1) Match por CIF: mismo CIF = misma empresa con total seguridad,
             //    sin importar cómo haya escrito Gemini el nombre esta vez
@@ -375,14 +418,30 @@ namespace FACTicket_Scanner
             {
                 var cifsExistentes = ObtenerCifsPorEmpresa(carpetaTickets);
                 if (cifsExistentes.TryGetValue(cifNorm, out string? carpetaPorCif))
-                    return carpetaPorCif;
+                    return (carpetaPorCif, false);
             }
 
             var existentes = ObtenerNombresEmpresaExistentes(carpetaTickets);
 
-            // Coincidencia exacta (insensible a mayúsculas) → reusar tal cual
+            // Coincidencia exacta (insensible a mayúsculas) → reusar tal cual,
+            // salvo que el CIF nuevo choque con uno distinto ya guardado en esa
+            // carpeta: mismo nombre pero CIF distinto = empresa distinta con
+            // total probabilidad, así que se pregunta sin cuenta atrás.
             string? exacta = existentes.FirstOrDefault(e => string.Equals(e, candidata, StringComparison.OrdinalIgnoreCase));
-            if (exacta != null) return exacta;
+            if (exacta != null)
+            {
+                if (CifDistintoEnCarpeta(carpetaTickets, exacta, cifNorm))
+                {
+                    var resultado = MessageBox.Show(
+                        $"La empresa \"{nombreEmpresaOriginal}\" ya existe, pero con un CIF distinto al detectado ahora ({cifOriginal}).\n\n" +
+                        "¿Es la misma empresa?\n\nSí = guardar en la carpeta existente\nNo = crear una carpeta nueva",
+                        "CIF distinto detectado", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+                    if (resultado == DialogResult.Yes) return (exacta, requiereRevision: true);
+                    return (candidata, requiereRevision: false);
+                }
+                return (exacta, false);
+            }
 
             // 2) Fallback sin CIF: fuzzy por conjunto de palabras. Tolera que
             //    el nombre extraído sea solo el comercial o solo el legal
@@ -411,10 +470,156 @@ namespace FACTicket_Scanner
                     "¿Es la misma empresa?\n\nSí = guardar en la carpeta existente\nNo = crear una carpeta nueva",
                     "Posible empresa duplicada", resultadoPorDefecto: true);
 
-                if (esMismaEmpresa) return mejorMatch;
+                if (esMismaEmpresa) return (mejorMatch, false);
             }
 
-            return candidata;
+            return (candidata, false);
+        }
+
+        // -----------------------------------------------------------------------
+        // Comprueba si en la carpeta de empresa dada ya hay alguna factura con
+        // un CIF distinto (y no vacío) al nuevo. Ignora cif vacíos (no hay dato
+        // suficiente para afirmar que son empresas distintas).
+        // -----------------------------------------------------------------------
+        private static bool CifDistintoEnCarpeta(string carpetaTickets, string carpetaEmpresa, string cifNuevoNorm)
+        {
+            if (cifNuevoNorm.Length == 0) return false;
+            foreach (var t in CargarTodasLasFacturas(carpetaTickets))
+            {
+                if (!string.Equals(t.Empresa, carpetaEmpresa, StringComparison.OrdinalIgnoreCase)) continue;
+                string cifExistente = NormalizarCif(t.Cif);
+                if (cifExistente.Length > 0 && cifExistente != cifNuevoNorm) return true;
+            }
+            return false;
+        }
+
+        // -----------------------------------------------------------------------
+        // Aplica los datos reprocesados con Gemini desde el visor (botón ✏️).
+        // Conserva ImagenRelativa/PdfRelativa/FechaGuardado/PHash (Gemini no
+        // los recalcula) y resuelve la carpeta de empresa igual que al
+        // guardar por primera vez: si el nombre nuevo no coincide con la
+        // carpeta actual, MUEVE la carpeta de la factura para que carpeta
+        // real y JSON nunca diverjan (bug de "nombres que no coinciden").
+        // Limitación: no cambia de raíz Facturas/Albaranes si el tipo de
+        // documento cambia durante la edición.
+        // -----------------------------------------------------------------------
+        public string ActualizarFacturaEditada(string rutaJsonActual, DatosTicket nuevosDatos)
+        {
+            var datosAntiguos = DatosTicket.CargarUnico(rutaJsonActual);
+            if (datosAntiguos == null) throw new Exception("No se pudo leer la factura original.");
+
+            nuevosDatos.FechaGuardado = datosAntiguos.FechaGuardado;
+            nuevosDatos.PHash = datosAntiguos.PHash;
+
+            string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
+            string carpetaFacturaActual = System.IO.Path.GetDirectoryName(rutaJsonActual)!;
+            string carpetaEmpresaActual = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(carpetaFacturaActual)!);
+
+            string carpetaEmpresaNueva = string.IsNullOrWhiteSpace(nuevosDatos.Empresa)
+                ? carpetaEmpresaActual
+                : ResolverCarpetaEmpresa(carpetaTickets, nuevosDatos.Empresa, nuevosDatos.Cif).carpeta;
+
+            string rutaJsonFinal = rutaJsonActual;
+
+            if (!string.Equals(carpetaEmpresaNueva, carpetaEmpresaActual, StringComparison.OrdinalIgnoreCase))
+            {
+                string carpetaAnio = System.IO.Path.GetDirectoryName(carpetaFacturaActual)!;
+                string raiz = System.IO.Path.GetDirectoryName(carpetaAnio)!;
+                string nombreAnio = System.IO.Path.GetFileName(carpetaAnio);
+                string nombreFactura = System.IO.Path.GetFileName(carpetaFacturaActual);
+                string carpetaEmpresaDestino = System.IO.Path.Combine(raiz, nombreAnio, carpetaEmpresaNueva);
+                System.IO.Directory.CreateDirectory(carpetaEmpresaDestino);
+                string carpetaFacturaNueva = System.IO.Path.Combine(carpetaEmpresaDestino, nombreFactura);
+                System.IO.Directory.Move(carpetaFacturaActual, carpetaFacturaNueva);
+                rutaJsonFinal = System.IO.Path.Combine(carpetaFacturaNueva, "datos.json");
+
+                string Reemplazar(string relativa) => string.IsNullOrEmpty(relativa)
+                    ? relativa
+                    : relativa.Replace($"/{carpetaEmpresaActual}/", $"/{carpetaEmpresaNueva}/");
+
+                nuevosDatos.ImagenRelativa = Reemplazar(datosAntiguos.ImagenRelativa);
+                nuevosDatos.PdfRelativa = Reemplazar(datosAntiguos.PdfRelativa);
+                nuevosDatos.JsonRelativa = Reemplazar(datosAntiguos.JsonRelativa);
+            }
+            else
+            {
+                nuevosDatos.ImagenRelativa = datosAntiguos.ImagenRelativa;
+                nuevosDatos.PdfRelativa = datosAntiguos.PdfRelativa;
+                nuevosDatos.JsonRelativa = datosAntiguos.JsonRelativa;
+            }
+
+            nuevosDatos.Empresa = carpetaEmpresaNueva; // mismo nombre canónico en carpeta y JSON
+            DatosTicket.GuardarUnico(rutaJsonFinal, nuevosDatos);
+
+            var lista = CargarTodasLasFacturas(carpetaTickets);
+            HtmlBuilder.GenerarAlbum(carpetaTickets, lista, NombreAlbum, ObtenerEmpresasDesdeCarpetas(carpetaTickets));
+
+            return rutaJsonFinal;
+        }
+
+        // -----------------------------------------------------------------------
+        // Edición completa desde el visor: reprocesa imagen+pdf sobre la MISMA
+        // carpeta ya existente (no crea factura nueva) y vuelve a extraer datos
+        // con Gemini. Si la empresa cambia, ActualizarFacturaEditada mueve la
+        // carpeta entera a la ruta correcta.
+        // -----------------------------------------------------------------------
+        public async System.Threading.Tasks.Task<string> EditarFacturaCompleta(
+            string rutaJsonActual, Mat imagenProcesada, Mat original,
+            bool guardarOriginal, bool guardarJpg, bool guardarPdf)
+        {
+            string carpetaFactura = System.IO.Path.GetDirectoryName(rutaJsonActual)!;
+            var datosAntiguos = DatosTicket.CargarUnico(rutaJsonActual)
+                ?? throw new Exception("No se pudo leer la factura original.");
+
+            string baseNombre = System.IO.Path.GetFileNameWithoutExtension(
+                string.IsNullOrEmpty(datosAntiguos.ImagenRelativa)
+                    ? "procesada" : datosAntiguos.ImagenRelativa);
+
+            string rutaProcesada = System.IO.Path.Combine(carpetaFactura, baseNombre + ".jpg");
+            string rutaOriginal = System.IO.Path.Combine(carpetaFactura, "original.jpg");
+            string rutaPdf = System.IO.Path.Combine(carpetaFactura, baseNombre + ".pdf");
+
+            if (guardarJpg) Cv2.ImWrite(rutaProcesada, imagenProcesada);
+            if (guardarOriginal) Cv2.ImWrite(rutaOriginal, original);
+            if (guardarPdf) GuardarComoPdf(imagenProcesada, rutaPdf);
+
+            DatosTicket nuevosDatos = await GeminiAPI.ExtraerDatosFactura(original);
+
+            return ActualizarFacturaEditada(rutaJsonActual, nuevosDatos);
+        }
+
+        // -----------------------------------------------------------------------
+        // Localiza el datos.json de una factura cuando su propio campo "json"
+        // viene vacío (registros corruptos del bug antiguo de editar). Mismo
+        // criterio que BuscarPosibleDuplicado: Empresa+Nº, o Empresa+Fecha+Total
+        // si no hay número.
+        // -----------------------------------------------------------------------
+        public string? BuscarRutaJsonFactura(string empresa, string numero, string fecha, string total)
+        {
+            string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
+            if (!System.IO.Directory.Exists(carpetaTickets)) return null;
+
+            string empN = NormalizarComparable(empresa);
+            string numN = NormalizarComparable(numero);
+            string fecN = NormalizarComparable(fecha);
+            string totN = NormalizarComparable(total);
+            if (empN.Length == 0) return null;
+
+            foreach (var rutaJson in System.IO.Directory.GetFiles(carpetaTickets, "datos.json", System.IO.SearchOption.AllDirectories))
+            {
+                var t = DatosTicket.CargarUnico(rutaJson);
+                if (t == null || NormalizarComparable(t.Empresa) != empN) continue;
+
+                if (numN.Length > 0)
+                {
+                    if (NormalizarComparable(t.Numero) == numN) return rutaJson;
+                    continue;
+                }
+                if (fecN.Length > 0 && totN.Length > 0
+                    && NormalizarComparable(t.Fecha) == fecN && NormalizarComparable(t.Total) == totN)
+                    return rutaJson;
+            }
+            return null;
         }
 
         // -----------------------------------------------------------------------
@@ -456,8 +661,11 @@ namespace FACTicket_Scanner
         // y usa Levenshtein palabra a palabra para tolerar erratas de OCR.
         private static double CalcularSimilitudPalabras(string a, string b)
         {
-            var palabrasA = a.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => !CONECTORES_EMPRESA.Contains(p)).Distinct().ToList();
-            var palabrasB = b.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => !CONECTORES_EMPRESA.Contains(p)).Distinct().ToList();
+            //var palabrasA = a.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => !CONECTORES_EMPRESA.Contains(p)).Distinct().ToList();
+            //var palabrasB = b.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => !CONECTORES_EMPRESA.Contains(p)).Distinct().ToList();
+            var palabrasA = a.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => !CONECTORES_EMPRESA.Contains(p) && p.Length > 1).Distinct().ToList();
+            var palabrasB = b.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => !CONECTORES_EMPRESA.Contains(p) && p.Length > 1).Distinct().ToList();
+
             if (palabrasA.Count == 0 || palabrasB.Count == 0) return 0.0;
 
             var (cortas, largas) = palabrasA.Count <= palabrasB.Count ? (palabrasA, palabrasB) : (palabrasB, palabrasA);

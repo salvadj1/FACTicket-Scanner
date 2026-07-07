@@ -17,7 +17,6 @@ namespace FACTicket_Scanner
 
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.archivoToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.abrirToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -36,27 +35,35 @@ namespace FACTicket_Scanner
             this.utilidadesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.conversorIMGPDFToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.analizarPhashDeTodasLasFacturasToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.buscarDuplicadosToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.aPIToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editarClavesAPIToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.ayudaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.separadorMenuToolbarToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
             this.aboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.logToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.btnCerrarVisor = new System.Windows.Forms.Button();
-            this.panelBarraVisor = new System.Windows.Forms.Panel();
-            this.lblEstadoVisor = new System.Windows.Forms.Label();
-            this.lblEventosVisor = new System.Windows.Forms.Label();
-            this.btnReconectarRapido = new System.Windows.Forms.ToolStripButton();
-            this.btnBuscarCamara = new System.Windows.Forms.ToolStripButton();
-            this.cmbResultadoCamara = new System.Windows.Forms.ToolStripComboBox();
-            this.txtUrlCamara = new System.Windows.Forms.ToolStripTextBox();
-            this.cmbTipoCamara = new System.Windows.Forms.ToolStripComboBox();
-            this.separadorToolbarToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
-            this.btnVisorRapido = new System.Windows.Forms.ToolStripButton();
-            this.btnCarpetaRapida = new System.Windows.Forms.ToolStripButton();
-            this.separadorToolbar2ToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
-            this.btnGuardarRapido = new System.Windows.Forms.ToolStripButton();
+            this.separadorMenuToolbarToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
             this.btnAbrirRapido = new System.Windows.Forms.ToolStripButton();
+            this.btnGuardarRapido = new System.Windows.Forms.ToolStripButton();
+            this.separadorToolbar2ToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
+            this.btnCarpetaRapida = new System.Windows.Forms.ToolStripButton();
+            this.btnVisorRapido = new System.Windows.Forms.ToolStripButton();
+            this.separadorToolbarToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
+            this.cmbTipoCamara = new System.Windows.Forms.ToolStripComboBox();
+            this.txtUrlCamara = new System.Windows.Forms.ToolStripTextBox();
+            this.cmbResultadoCamara = new System.Windows.Forms.ToolStripComboBox();
+            this.btnBuscarCamara = new System.Windows.Forms.ToolStripButton();
+            this.btnReconectarRapido = new System.Windows.Forms.ToolStripButton();
+            this.btnCerrarVisor = new System.Windows.Forms.Button();
+            this.panelNavModal = new System.Windows.Forms.FlowLayoutPanel();
+            this.btnAnteriorVisor = new System.Windows.Forms.Button();
+            this.lblTituloModal = new System.Windows.Forms.Label();
+            this.btnSiguienteVisor = new System.Windows.Forms.Button();
+            this.btnEditarVisor = new System.Windows.Forms.Button();
+            this.btnEliminarVisor = new System.Windows.Forms.Button();
+            this.btnCerrarModalVisor = new System.Windows.Forms.Button();
+            this.panelBarraVisor = new System.Windows.Forms.Panel();
+            this.lblEventosVisor = new System.Windows.Forms.Label();
+            this.lblEstadoVisor = new System.Windows.Forms.Label();
             this.panelIzquierdo = new System.Windows.Forms.Panel();
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.panelDerecho = new System.Windows.Forms.Panel();
@@ -65,6 +72,8 @@ namespace FACTicket_Scanner
             this.panelVisor = new System.Windows.Forms.Panel();
             this.webViewAlbum = new Microsoft.Web.WebView2.WinForms.WebView2();
             this.menuStrip1.SuspendLayout();
+            this.panelNavModal.SuspendLayout();
+            this.panelBarraVisor.SuspendLayout();
             this.panelIzquierdo.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.panelDerecho.SuspendLayout();
@@ -98,7 +107,7 @@ namespace FACTicket_Scanner
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
             this.menuStrip1.ShowItemToolTips = true;
-            this.menuStrip1.Size = new System.Drawing.Size(1280, 30);
+            this.menuStrip1.Size = new System.Drawing.Size(1280, 27);
             this.menuStrip1.TabIndex = 0;
             this.menuStrip1.Text = "menuStrip1";
             // 
@@ -111,7 +120,7 @@ namespace FACTicket_Scanner
             this.separadorArchivoToolStripMenuItem,
             this.salirToolStripMenuItem});
             this.archivoToolStripMenuItem.Name = "archivoToolStripMenuItem";
-            this.archivoToolStripMenuItem.Size = new System.Drawing.Size(67, 26);
+            this.archivoToolStripMenuItem.Size = new System.Drawing.Size(67, 23);
             this.archivoToolStripMenuItem.Text = "Archivo";
             // 
             // abrirToolStripMenuItem
@@ -158,7 +167,7 @@ namespace FACTicket_Scanner
             this.separadorCamaraToolStripMenuItem,
             this.reconectarToolStripMenuItem});
             this.camaraMenuToolStripMenuItem.Name = "camaraMenuToolStripMenuItem";
-            this.camaraMenuToolStripMenuItem.Size = new System.Drawing.Size(68, 26);
+            this.camaraMenuToolStripMenuItem.Size = new System.Drawing.Size(68, 23);
             this.camaraMenuToolStripMenuItem.Text = "Cámara";
             // 
             // camaraToolStripMenuItem
@@ -193,7 +202,7 @@ namespace FACTicket_Scanner
             this.visorToolStripMenuItem,
             this.carpetaToolStripMenuItem});
             this.verToolStripMenuItem.Name = "verToolStripMenuItem";
-            this.verToolStripMenuItem.Size = new System.Drawing.Size(41, 26);
+            this.verToolStripMenuItem.Size = new System.Drawing.Size(41, 23);
             this.verToolStripMenuItem.Text = "Ver";
             // 
             // visorToolStripMenuItem
@@ -215,9 +224,10 @@ namespace FACTicket_Scanner
             // 
             this.utilidadesToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.conversorIMGPDFToolStripMenuItem,
-            this.analizarPhashDeTodasLasFacturasToolStripMenuItem});
+            this.analizarPhashDeTodasLasFacturasToolStripMenuItem,
+            this.buscarDuplicadosToolStripMenuItem});
             this.utilidadesToolStripMenuItem.Name = "utilidadesToolStripMenuItem";
-            this.utilidadesToolStripMenuItem.Size = new System.Drawing.Size(81, 26);
+            this.utilidadesToolStripMenuItem.Size = new System.Drawing.Size(81, 23);
             this.utilidadesToolStripMenuItem.Text = "Utilidades";
             // 
             // conversorIMGPDFToolStripMenuItem
@@ -234,12 +244,19 @@ namespace FACTicket_Scanner
             this.analizarPhashDeTodasLasFacturasToolStripMenuItem.Text = "Analizar Phash de todas las facturas";
             this.analizarPhashDeTodasLasFacturasToolStripMenuItem.Click += new System.EventHandler(this.analizarPhashDeTodasLasFacturasToolStripMenuItem_Click);
             // 
+            // buscarDuplicadosToolStripMenuItem
+            // 
+            this.buscarDuplicadosToolStripMenuItem.Name = "buscarDuplicadosToolStripMenuItem";
+            this.buscarDuplicadosToolStripMenuItem.Size = new System.Drawing.Size(296, 24);
+            this.buscarDuplicadosToolStripMenuItem.Text = "Buscar Duplicados";
+            this.buscarDuplicadosToolStripMenuItem.Click += new System.EventHandler(this.buscarDuplicadosToolStripMenuItem_Click);
+            // 
             // aPIToolStripMenuItem
             // 
             this.aPIToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.editarClavesAPIToolStripMenuItem});
             this.aPIToolStripMenuItem.Name = "aPIToolStripMenuItem";
-            this.aPIToolStripMenuItem.Size = new System.Drawing.Size(42, 26);
+            this.aPIToolStripMenuItem.Size = new System.Drawing.Size(42, 23);
             this.aPIToolStripMenuItem.Text = "API";
             // 
             // editarClavesAPIToolStripMenuItem
@@ -255,7 +272,7 @@ namespace FACTicket_Scanner
             this.aboutToolStripMenuItem,
             this.logToolStripMenuItem});
             this.ayudaToolStripMenuItem.Name = "ayudaToolStripMenuItem";
-            this.ayudaToolStripMenuItem.Size = new System.Drawing.Size(60, 26);
+            this.ayudaToolStripMenuItem.Size = new System.Drawing.Size(60, 23);
             this.ayudaToolStripMenuItem.Text = "Ayuda";
             // 
             // aboutToolStripMenuItem
@@ -272,87 +289,57 @@ namespace FACTicket_Scanner
             this.logToolStripMenuItem.Text = "🐛  Ver log de depuración";
             this.logToolStripMenuItem.Click += new System.EventHandler(this.logToolStripMenuItem_Click);
             // 
+            // separadorMenuToolbarToolStripMenuItem
+            // 
             this.separadorMenuToolbarToolStripMenuItem.AutoSize = false;
-            this.separadorMenuToolbarToolStripMenuItem.Width = 76;
+            this.separadorMenuToolbarToolStripMenuItem.Name = "separadorMenuToolbarToolStripMenuItem";
+            this.separadorMenuToolbarToolStripMenuItem.Size = new System.Drawing.Size(76, 6);
             // 
-            // btnCerrarVisor
+            // btnAbrirRapido
             // 
-            this.btnCerrarVisor.BackColor = System.Drawing.Color.Firebrick;
-            this.btnCerrarVisor.Dock = System.Windows.Forms.DockStyle.Right;
-            this.btnCerrarVisor.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnCerrarVisor.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            this.btnCerrarVisor.ForeColor = System.Drawing.Color.White;
-            this.btnCerrarVisor.Name = "btnCerrarVisor";
-            this.btnCerrarVisor.Size = new System.Drawing.Size(40, 30);
-            this.btnCerrarVisor.Text = "✕";
-            this.btnCerrarVisor.UseVisualStyleBackColor = false;
-            this.btnCerrarVisor.Click += new System.EventHandler(this.btnCerrarVisor_Click);
+            this.btnAbrirRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnAbrirRapido.Name = "btnAbrirRapido";
+            this.btnAbrirRapido.Size = new System.Drawing.Size(23, 20);
+            this.btnAbrirRapido.Text = "📂";
+            this.btnAbrirRapido.ToolTipText = "Abrir imagen desde archivo (Ctrl+O)";
+            this.btnAbrirRapido.Click += new System.EventHandler(this.abrirToolStripMenuItem_Click);
             // 
-            // panelBarraVisor
+            // btnGuardarRapido
             // 
-            this.panelBarraVisor.BackColor = System.Drawing.Color.FromArgb(26, 115, 232);
-            this.panelBarraVisor.Controls.Add(this.lblEventosVisor);
-            this.panelBarraVisor.Controls.Add(this.lblEstadoVisor);
-            this.panelBarraVisor.Controls.Add(this.btnCerrarVisor);
-            this.panelBarraVisor.Dock = System.Windows.Forms.DockStyle.Top;
-            this.panelBarraVisor.Name = "panelBarraVisor";
-            this.panelBarraVisor.Size = new System.Drawing.Size(1280, 38);
-            this.panelBarraVisor.TabIndex = 0;
+            this.btnGuardarRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnGuardarRapido.Name = "btnGuardarRapido";
+            this.btnGuardarRapido.Size = new System.Drawing.Size(23, 20);
+            this.btnGuardarRapido.Text = "💾";
+            this.btnGuardarRapido.ToolTipText = "Guardar factura procesada (Ctrl+S)";
+            this.btnGuardarRapido.Click += new System.EventHandler(this.guardarToolStripMenuItem_Click);
             // 
-            // lblEstadoVisor
+            // separadorToolbar2ToolStripMenuItem
             // 
-            this.lblEstadoVisor.AutoSize = true;
-            this.lblEstadoVisor.Dock = System.Windows.Forms.DockStyle.Left;
-            this.lblEstadoVisor.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
-            this.lblEstadoVisor.ForeColor = System.Drawing.Color.White;
-            this.lblEstadoVisor.Name = "lblEstadoVisor";
-            this.lblEstadoVisor.Padding = new System.Windows.Forms.Padding(10, 9, 8, 0);
-            this.lblEstadoVisor.Text = "📊 Panel de Facturas";
+            this.separadorToolbar2ToolStripMenuItem.Name = "separadorToolbar2ToolStripMenuItem";
+            this.separadorToolbar2ToolStripMenuItem.Size = new System.Drawing.Size(6, 23);
             // 
-            // lblEventosVisor
+            // btnCarpetaRapida
             // 
-            this.lblEventosVisor.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.lblEventosVisor.Font = new System.Drawing.Font("Segoe UI", 10F);
-            this.lblEventosVisor.ForeColor = System.Drawing.Color.White;
-            this.lblEventosVisor.Name = "lblEventosVisor";
-            this.lblEventosVisor.Padding = new System.Windows.Forms.Padding(0, 9, 0, 0);
-            this.lblEventosVisor.Text = "";
-            this.lblEventosVisor.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.btnCarpetaRapida.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnCarpetaRapida.Name = "btnCarpetaRapida";
+            this.btnCarpetaRapida.Size = new System.Drawing.Size(23, 20);
+            this.btnCarpetaRapida.Text = "🗂️";
+            this.btnCarpetaRapida.ToolTipText = "Abrir carpeta de facturas";
+            this.btnCarpetaRapida.Click += new System.EventHandler(this.carpetaToolStripMenuItem_Click);
             // 
-            // btnReconectarRapido
+            // btnVisorRapido
             // 
-            this.btnReconectarRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.btnReconectarRapido.Name = "btnReconectarRapido";
-            this.btnReconectarRapido.Size = new System.Drawing.Size(23, 23);
-            this.btnReconectarRapido.Text = "🔁";
-            this.btnReconectarRapido.ToolTipText = "Reconectar última cámara";
-            this.btnReconectarRapido.Click += new System.EventHandler(this.BtnReconectarRapido_Click);
+            this.btnVisorRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnVisorRapido.Name = "btnVisorRapido";
+            this.btnVisorRapido.Size = new System.Drawing.Size(23, 20);
+            this.btnVisorRapido.Text = "🌐";
+            this.btnVisorRapido.ToolTipText = "Abrir visor web de facturas (Ctrl+W)";
+            this.btnVisorRapido.Click += new System.EventHandler(this.visorToolStripMenuItem_Click);
             // 
-            // btnBuscarCamara
+            // separadorToolbarToolStripMenuItem
             // 
-            this.btnBuscarCamara.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.btnBuscarCamara.Name = "btnBuscarCamara";
-            this.btnBuscarCamara.Size = new System.Drawing.Size(23, 23);
-            this.btnBuscarCamara.Text = "🔍";
-            this.btnBuscarCamara.ToolTipText = "Buscar cámaras";
-            this.btnBuscarCamara.Click += new System.EventHandler(this.BtnBuscarCamara_Click);
-            // 
-            // cmbResultadoCamara
-            // 
-            this.cmbResultadoCamara.AutoSize = false;
-            this.cmbResultadoCamara.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.cmbResultadoCamara.Name = "cmbResultadoCamara";
-            this.cmbResultadoCamara.Size = new System.Drawing.Size(120, 23);
-            this.cmbResultadoCamara.ToolTipText = "Seleccionar cámara encontrada";
-            this.cmbResultadoCamara.SelectedIndexChanged += new System.EventHandler(this.CmbResultadoCamara_SelectedIndexChanged);
-            // 
-            // txtUrlCamara
-            // 
-            this.txtUrlCamara.AutoSize = false;
-            this.txtUrlCamara.Name = "txtUrlCamara";
-            this.txtUrlCamara.ReadOnly = true;
-            this.txtUrlCamara.Size = new System.Drawing.Size(180, 23);
-            this.txtUrlCamara.ToolTipText = "Fuente de la cámara activa";
+            this.separadorToolbarToolStripMenuItem.Name = "separadorToolbarToolStripMenuItem";
+            this.separadorToolbarToolStripMenuItem.Size = new System.Drawing.Size(6, 23);
             // 
             // cmbTipoCamara
             // 
@@ -363,60 +350,194 @@ namespace FACTicket_Scanner
             this.cmbTipoCamara.ToolTipText = "Tipo de cámara";
             this.cmbTipoCamara.SelectedIndexChanged += new System.EventHandler(this.CmbTipoCamara_SelectedIndexChanged);
             // 
-            // separadorToolbarToolStripMenuItem
+            // txtUrlCamara
             // 
-            this.separadorToolbarToolStripMenuItem.Name = "separadorToolbarToolStripMenuItem";
-            this.separadorToolbarToolStripMenuItem.Size = new System.Drawing.Size(6, 26);
+            this.txtUrlCamara.AutoSize = false;
+            this.txtUrlCamara.Name = "txtUrlCamara";
+            this.txtUrlCamara.ReadOnly = true;
+            this.txtUrlCamara.Size = new System.Drawing.Size(180, 23);
+            this.txtUrlCamara.ToolTipText = "Fuente de la cámara activa";
             // 
-            // btnVisorRapido
+            // cmbResultadoCamara
             // 
-            this.btnVisorRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.btnVisorRapido.Name = "btnVisorRapido";
-            this.btnVisorRapido.Size = new System.Drawing.Size(23, 23);
-            this.btnVisorRapido.Text = "🌐";
-            this.btnVisorRapido.ToolTipText = "Abrir visor web de facturas (Ctrl+W)";
-            this.btnVisorRapido.Click += new System.EventHandler(this.visorToolStripMenuItem_Click);
+            this.cmbResultadoCamara.AutoSize = false;
+            this.cmbResultadoCamara.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbResultadoCamara.Name = "cmbResultadoCamara";
+            this.cmbResultadoCamara.Size = new System.Drawing.Size(120, 23);
+            this.cmbResultadoCamara.ToolTipText = "Seleccionar cámara encontrada";
+            this.cmbResultadoCamara.SelectedIndexChanged += new System.EventHandler(this.CmbResultadoCamara_SelectedIndexChanged);
             // 
-            // btnCarpetaRapida
+            // btnBuscarCamara
             // 
-            this.btnCarpetaRapida.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.btnCarpetaRapida.Name = "btnCarpetaRapida";
-            this.btnCarpetaRapida.Size = new System.Drawing.Size(23, 23);
-            this.btnCarpetaRapida.Text = "🗂️";
-            this.btnCarpetaRapida.ToolTipText = "Abrir carpeta de facturas";
-            this.btnCarpetaRapida.Click += new System.EventHandler(this.carpetaToolStripMenuItem_Click);
+            this.btnBuscarCamara.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnBuscarCamara.Name = "btnBuscarCamara";
+            this.btnBuscarCamara.Size = new System.Drawing.Size(23, 20);
+            this.btnBuscarCamara.Text = "🔍";
+            this.btnBuscarCamara.ToolTipText = "Buscar cámaras";
+            this.btnBuscarCamara.Click += new System.EventHandler(this.BtnBuscarCamara_Click);
             // 
-            // separadorToolbar2ToolStripMenuItem
+            // btnReconectarRapido
             // 
-            this.separadorToolbar2ToolStripMenuItem.Name = "separadorToolbar2ToolStripMenuItem";
-            this.separadorToolbar2ToolStripMenuItem.Size = new System.Drawing.Size(6, 26);
+            this.btnReconectarRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.btnReconectarRapido.Name = "btnReconectarRapido";
+            this.btnReconectarRapido.Size = new System.Drawing.Size(23, 20);
+            this.btnReconectarRapido.Text = "🔁";
+            this.btnReconectarRapido.ToolTipText = "Reconectar última cámara";
+            this.btnReconectarRapido.Click += new System.EventHandler(this.BtnReconectarRapido_Click);
             // 
-            // btnGuardarRapido
+            // btnCerrarVisor
             // 
-            this.btnGuardarRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.btnGuardarRapido.Name = "btnGuardarRapido";
-            this.btnGuardarRapido.Size = new System.Drawing.Size(23, 23);
-            this.btnGuardarRapido.Text = "💾";
-            this.btnGuardarRapido.ToolTipText = "Guardar factura procesada (Ctrl+S)";
-            this.btnGuardarRapido.Click += new System.EventHandler(this.guardarToolStripMenuItem_Click);
+            this.btnCerrarVisor.BackColor = System.Drawing.Color.Firebrick;
+            this.btnCerrarVisor.Dock = System.Windows.Forms.DockStyle.Right;
+            this.btnCerrarVisor.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnCerrarVisor.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
+            this.btnCerrarVisor.ForeColor = System.Drawing.Color.White;
+            this.btnCerrarVisor.Location = new System.Drawing.Point(1240, 0);
+            this.btnCerrarVisor.Name = "btnCerrarVisor";
+            this.btnCerrarVisor.Size = new System.Drawing.Size(40, 38);
+            this.btnCerrarVisor.TabIndex = 2;
+            this.btnCerrarVisor.Text = "✕";
+            this.btnCerrarVisor.UseVisualStyleBackColor = false;
+            this.btnCerrarVisor.Click += new System.EventHandler(this.btnCerrarVisor_Click);
             // 
-            // btnAbrirRapido
+            // panelNavModal
             // 
-            this.btnAbrirRapido.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.btnAbrirRapido.Name = "btnAbrirRapido";
-            this.btnAbrirRapido.Size = new System.Drawing.Size(23, 23);
-            this.btnAbrirRapido.Text = "📂";
-            this.btnAbrirRapido.ToolTipText = "Abrir imagen desde archivo (Ctrl+O)";
-            this.btnAbrirRapido.Click += new System.EventHandler(this.abrirToolStripMenuItem_Click);
+            this.panelNavModal.AutoSize = true;
+            this.panelNavModal.BackColor = System.Drawing.Color.Transparent;
+            this.panelNavModal.Controls.Add(this.btnAnteriorVisor);
+            this.panelNavModal.Controls.Add(this.lblTituloModal);
+            this.panelNavModal.Controls.Add(this.btnSiguienteVisor);
+            this.panelNavModal.Controls.Add(this.btnEditarVisor);
+            this.panelNavModal.Controls.Add(this.btnEliminarVisor);
+            this.panelNavModal.Controls.Add(this.btnCerrarModalVisor);
+            this.panelNavModal.Location = new System.Drawing.Point(490, 3);
+            this.panelNavModal.Name = "panelNavModal";
+            this.panelNavModal.Size = new System.Drawing.Size(307, 32);
+            this.panelNavModal.TabIndex = 3;
+            this.panelNavModal.Visible = false;
+            this.panelNavModal.WrapContents = false;
+            // 
+            // btnAnteriorVisor
+            // 
+            this.btnAnteriorVisor.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnAnteriorVisor.ForeColor = System.Drawing.Color.White;
+            this.btnAnteriorVisor.Location = new System.Drawing.Point(2, 0);
+            this.btnAnteriorVisor.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
+            this.btnAnteriorVisor.Name = "btnAnteriorVisor";
+            this.btnAnteriorVisor.Size = new System.Drawing.Size(32, 30);
+            this.btnAnteriorVisor.TabIndex = 0;
+            this.btnAnteriorVisor.Text = "◀";
+            this.btnAnteriorVisor.UseVisualStyleBackColor = true;
+            this.btnAnteriorVisor.Click += new System.EventHandler(this.btnAnteriorVisor_Click);
+            // 
+            // lblTituloModal
+            // 
+            this.lblTituloModal.AutoSize = true;
+            this.lblTituloModal.ForeColor = System.Drawing.Color.White;
+            this.lblTituloModal.Location = new System.Drawing.Point(42, 8);
+            this.lblTituloModal.Margin = new System.Windows.Forms.Padding(6, 8, 6, 0);
+            this.lblTituloModal.Name = "lblTituloModal";
+            this.lblTituloModal.Size = new System.Drawing.Size(99, 15);
+            this.lblTituloModal.TabIndex = 1;
+            this.lblTituloModal.Text = "(sin empresa) · —";
+            // 
+            // btnSiguienteVisor
+            // 
+            this.btnSiguienteVisor.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnSiguienteVisor.ForeColor = System.Drawing.Color.White;
+            this.btnSiguienteVisor.Location = new System.Drawing.Point(149, 0);
+            this.btnSiguienteVisor.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
+            this.btnSiguienteVisor.Name = "btnSiguienteVisor";
+            this.btnSiguienteVisor.Size = new System.Drawing.Size(32, 30);
+            this.btnSiguienteVisor.TabIndex = 2;
+            this.btnSiguienteVisor.Text = "▶";
+            this.btnSiguienteVisor.UseVisualStyleBackColor = true;
+            this.btnSiguienteVisor.Click += new System.EventHandler(this.btnSiguienteVisor_Click);
+            // 
+            // btnEditarVisor
+            // 
+            this.btnEditarVisor.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnEditarVisor.Location = new System.Drawing.Point(193, 0);
+            this.btnEditarVisor.Margin = new System.Windows.Forms.Padding(10, 0, 2, 0);
+            this.btnEditarVisor.Name = "btnEditarVisor";
+            this.btnEditarVisor.Size = new System.Drawing.Size(32, 30);
+            this.btnEditarVisor.TabIndex = 3;
+            this.btnEditarVisor.Text = "✏️";
+            this.btnEditarVisor.UseVisualStyleBackColor = true;
+            this.btnEditarVisor.Click += new System.EventHandler(this.btnEditarVisor_Click);
+            // 
+            // btnEliminarVisor
+            // 
+            this.btnEliminarVisor.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnEliminarVisor.ForeColor = System.Drawing.Color.Firebrick;
+            this.btnEliminarVisor.Location = new System.Drawing.Point(229, 0);
+            this.btnEliminarVisor.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
+            this.btnEliminarVisor.Name = "btnEliminarVisor";
+            this.btnEliminarVisor.Size = new System.Drawing.Size(32, 30);
+            this.btnEliminarVisor.TabIndex = 4;
+            this.btnEliminarVisor.Text = "➖";
+            this.btnEliminarVisor.UseVisualStyleBackColor = true;
+            this.btnEliminarVisor.Click += new System.EventHandler(this.btnEliminarVisor_Click);
+            // 
+            // btnCerrarModalVisor
+            // 
+            this.btnCerrarModalVisor.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnCerrarModalVisor.Location = new System.Drawing.Point(273, 0);
+            this.btnCerrarModalVisor.Margin = new System.Windows.Forms.Padding(10, 0, 2, 0);
+            this.btnCerrarModalVisor.Name = "btnCerrarModalVisor";
+            this.btnCerrarModalVisor.Size = new System.Drawing.Size(32, 30);
+            this.btnCerrarModalVisor.TabIndex = 5;
+            this.btnCerrarModalVisor.Text = "✕";
+            this.btnCerrarModalVisor.UseVisualStyleBackColor = true;
+            this.btnCerrarModalVisor.Click += new System.EventHandler(this.btnCerrarModalVisor_Click);
+            // 
+            // panelBarraVisor
+            // 
+            this.panelBarraVisor.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(26)))), ((int)(((byte)(115)))), ((int)(((byte)(232)))));
+            this.panelBarraVisor.Controls.Add(this.panelNavModal);
+            this.panelBarraVisor.Controls.Add(this.lblEventosVisor);
+            this.panelBarraVisor.Controls.Add(this.lblEstadoVisor);
+            this.panelBarraVisor.Controls.Add(this.btnCerrarVisor);
+            this.panelBarraVisor.Dock = System.Windows.Forms.DockStyle.Top;
+            this.panelBarraVisor.Location = new System.Drawing.Point(0, 0);
+            this.panelBarraVisor.Name = "panelBarraVisor";
+            this.panelBarraVisor.Size = new System.Drawing.Size(1280, 38);
+            this.panelBarraVisor.TabIndex = 0;
+            this.panelBarraVisor.Resize += new System.EventHandler(this.panelBarraVisor_Resize);
+            // 
+            // lblEventosVisor
+            // 
+            this.lblEventosVisor.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.lblEventosVisor.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+            this.lblEventosVisor.ForeColor = System.Drawing.Color.White;
+            this.lblEventosVisor.Location = new System.Drawing.Point(174, 0);
+            this.lblEventosVisor.Name = "lblEventosVisor";
+            this.lblEventosVisor.Padding = new System.Windows.Forms.Padding(0, 9, 0, 0);
+            this.lblEventosVisor.Size = new System.Drawing.Size(1066, 38);
+            this.lblEventosVisor.TabIndex = 0;
+            this.lblEventosVisor.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
+            // lblEstadoVisor
+            // 
+            this.lblEstadoVisor.AutoSize = true;
+            this.lblEstadoVisor.Dock = System.Windows.Forms.DockStyle.Left;
+            this.lblEstadoVisor.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
+            this.lblEstadoVisor.ForeColor = System.Drawing.Color.White;
+            this.lblEstadoVisor.Location = new System.Drawing.Point(0, 0);
+            this.lblEstadoVisor.Name = "lblEstadoVisor";
+            this.lblEstadoVisor.Padding = new System.Windows.Forms.Padding(10, 9, 8, 0);
+            this.lblEstadoVisor.Size = new System.Drawing.Size(174, 29);
+            this.lblEstadoVisor.TabIndex = 1;
+            this.lblEstadoVisor.Text = "📊 Panel de Facturas";
             // 
             // panelIzquierdo
             // 
             this.panelIzquierdo.Controls.Add(this.pictureBox1);
             this.panelIzquierdo.Dock = System.Windows.Forms.DockStyle.Left;
-            this.panelIzquierdo.Location = new System.Drawing.Point(0, 30);
+            this.panelIzquierdo.Location = new System.Drawing.Point(0, 27);
             this.panelIzquierdo.Name = "panelIzquierdo";
             this.panelIzquierdo.Padding = new System.Windows.Forms.Padding(4);
-            this.panelIzquierdo.Size = new System.Drawing.Size(200, 770);
+            this.panelIzquierdo.Size = new System.Drawing.Size(200, 773);
             this.panelIzquierdo.TabIndex = 1;
             // 
             // pictureBox1
@@ -425,7 +546,7 @@ namespace FACTicket_Scanner
             this.pictureBox1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.pictureBox1.Location = new System.Drawing.Point(4, 4);
             this.pictureBox1.Name = "pictureBox1";
-            this.pictureBox1.Size = new System.Drawing.Size(192, 762);
+            this.pictureBox1.Size = new System.Drawing.Size(192, 765);
             this.pictureBox1.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.pictureBox1.TabIndex = 0;
             this.pictureBox1.TabStop = false;
@@ -436,10 +557,10 @@ namespace FACTicket_Scanner
             this.panelDerecho.Controls.Add(this.panelScrollable);
             this.panelDerecho.Controls.Add(this.panelBotones);
             this.panelDerecho.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.panelDerecho.Location = new System.Drawing.Point(200, 30);
+            this.panelDerecho.Location = new System.Drawing.Point(200, 27);
             this.panelDerecho.Name = "panelDerecho";
             this.panelDerecho.Padding = new System.Windows.Forms.Padding(8);
-            this.panelDerecho.Size = new System.Drawing.Size(1080, 770);
+            this.panelDerecho.Size = new System.Drawing.Size(1080, 773);
             this.panelDerecho.TabIndex = 0;
             // 
             // panelScrollable
@@ -448,14 +569,14 @@ namespace FACTicket_Scanner
             this.panelScrollable.Dock = System.Windows.Forms.DockStyle.Fill;
             this.panelScrollable.Location = new System.Drawing.Point(8, 8);
             this.panelScrollable.Name = "panelScrollable";
-            this.panelScrollable.Size = new System.Drawing.Size(1064, 374);
+            this.panelScrollable.Size = new System.Drawing.Size(1064, 377);
             this.panelScrollable.TabIndex = 0;
             // 
             // panelBotones
             // 
             this.panelBotones.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(235)))), ((int)(((byte)(235)))), ((int)(((byte)(235)))));
             this.panelBotones.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.panelBotones.Location = new System.Drawing.Point(8, 382);
+            this.panelBotones.Location = new System.Drawing.Point(8, 385);
             this.panelBotones.Name = "panelBotones";
             this.panelBotones.Padding = new System.Windows.Forms.Padding(8);
             this.panelBotones.Size = new System.Drawing.Size(1064, 380);
@@ -466,9 +587,9 @@ namespace FACTicket_Scanner
             this.panelVisor.Controls.Add(this.webViewAlbum);
             this.panelVisor.Controls.Add(this.panelBarraVisor);
             this.panelVisor.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.panelVisor.Location = new System.Drawing.Point(0, 30);
+            this.panelVisor.Location = new System.Drawing.Point(0, 27);
             this.panelVisor.Name = "panelVisor";
-            this.panelVisor.Size = new System.Drawing.Size(1280, 770);
+            this.panelVisor.Size = new System.Drawing.Size(1280, 773);
             this.panelVisor.TabIndex = 2;
             this.panelVisor.Visible = false;
             // 
@@ -478,9 +599,9 @@ namespace FACTicket_Scanner
             this.webViewAlbum.CreationProperties = null;
             this.webViewAlbum.DefaultBackgroundColor = System.Drawing.Color.White;
             this.webViewAlbum.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.webViewAlbum.Location = new System.Drawing.Point(0, 0);
+            this.webViewAlbum.Location = new System.Drawing.Point(0, 38);
             this.webViewAlbum.Name = "webViewAlbum";
-            this.webViewAlbum.Size = new System.Drawing.Size(1280, 770);
+            this.webViewAlbum.Size = new System.Drawing.Size(1280, 735);
             this.webViewAlbum.TabIndex = 0;
             this.webViewAlbum.ZoomFactor = 1D;
             // 
@@ -493,12 +614,15 @@ namespace FACTicket_Scanner
             this.Controls.Add(this.panelIzquierdo);
             this.Controls.Add(this.panelVisor);
             this.Controls.Add(this.menuStrip1);
-            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MainMenuStrip = this.menuStrip1;
             this.Name = "Form1";
             this.Text = "FACTicket Scanner";
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
+            this.panelNavModal.ResumeLayout(false);
+            this.panelNavModal.PerformLayout();
+            this.panelBarraVisor.ResumeLayout(false);
+            this.panelBarraVisor.PerformLayout();
             this.panelIzquierdo.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
             this.panelDerecho.ResumeLayout(false);
@@ -551,11 +675,19 @@ namespace FACTicket_Scanner
         private System.Windows.Forms.Label lblEstadoVisor;
         private System.Windows.Forms.Label lblEventosVisor;
         private System.Windows.Forms.Button btnCerrarVisor;
+        private System.Windows.Forms.FlowLayoutPanel panelNavModal;
+        private System.Windows.Forms.Button btnAnteriorVisor;
+        private System.Windows.Forms.Label lblTituloModal;
+        private System.Windows.Forms.Button btnSiguienteVisor;
+        private System.Windows.Forms.Button btnEditarVisor;
+        private System.Windows.Forms.Button btnEliminarVisor;
+        private System.Windows.Forms.Button btnCerrarModalVisor;
         private System.Windows.Forms.ToolStripMenuItem aPIToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem editarClavesAPIToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem utilidadesToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem conversorIMGPDFToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem analizarPhashDeTodasLasFacturasToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem exportarToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem buscarDuplicadosToolStripMenuItem;
     }
 }
