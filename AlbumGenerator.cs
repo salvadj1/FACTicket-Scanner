@@ -577,7 +577,41 @@ namespace FACTicket_Scanner
         // con Gemini. Si la empresa cambia, ActualizarFacturaEditada mueve la
         // carpeta entera a la ruta correcta.
         // -----------------------------------------------------------------------
+
         public async System.Threading.Tasks.Task<string> EditarFacturaCompleta(
+    string rutaJsonActual, Mat imagenProcesada, Mat original,
+    bool guardarOriginal, bool guardarJpg, bool guardarPdf, bool extraerConGemini,
+    Func<DatosTicket, System.Threading.Tasks.Task<DatosTicket?>> mostrarRevisionEmbebida)
+        {
+            string carpetaFactura = System.IO.Path.GetDirectoryName(rutaJsonActual)!;
+            var datosAntiguos = DatosTicket.CargarUnico(rutaJsonActual)
+                ?? throw new Exception("No se pudo leer la factura original.");
+
+            string baseNombre = System.IO.Path.GetFileNameWithoutExtension(
+                string.IsNullOrEmpty(datosAntiguos.ImagenRelativa)
+                    ? "procesada" : datosAntiguos.ImagenRelativa);
+
+            string rutaProcesada = System.IO.Path.Combine(carpetaFactura, baseNombre + ".jpg");
+            string rutaOriginal = System.IO.Path.Combine(carpetaFactura, "original.jpg");
+            string rutaPdf = System.IO.Path.Combine(carpetaFactura, baseNombre + ".pdf");
+
+            if (guardarJpg) Cv2.ImWrite(rutaProcesada, imagenProcesada);
+            if (guardarOriginal) Cv2.ImWrite(rutaOriginal, original);
+            if (guardarPdf) GuardarComoPdf(imagenProcesada, rutaPdf);
+
+            // Solo se reescanea con Gemini si el usuario lo pide explícitamente
+            // (checkbox "Datos (Gemini)"). Si no, se reutilizan los datos ya
+            // guardados en el datos.json existente para la pantalla de revisión.
+            DatosTicket nuevosDatos = extraerConGemini
+                ? await GeminiAPI.ExtraerDatosFactura(original)
+                : datosAntiguos;
+
+            DatosTicket? datosRevisados = await mostrarRevisionEmbebida(nuevosDatos);
+            if (datosRevisados == null) return "";
+
+            return ActualizarFacturaEditada(rutaJsonActual, datosRevisados);
+        }
+        /*public async System.Threading.Tasks.Task<string> EditarFacturaCompleta(
             string rutaJsonActual, Mat imagenProcesada, Mat original,
             bool guardarOriginal, bool guardarJpg, bool guardarPdf,
             Func<DatosTicket, System.Threading.Tasks.Task<DatosTicket?>> mostrarRevisionEmbebida)
@@ -604,7 +638,8 @@ namespace FACTicket_Scanner
             if (datosRevisados == null) return "";
 
             return ActualizarFacturaEditada(rutaJsonActual, datosRevisados);
-        }
+        }*/
+
 
         // -----------------------------------------------------------------------
         // Localiza el datos.json de una factura cuando su propio campo "json"

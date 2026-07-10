@@ -626,20 +626,23 @@ function setVista(v, btn){
   renderizar(listaFiltrada);
 }
 
-/* ─── Filtrar ─── */
+/* ─── Filtrar ─Búsqueda por varias palabras clave separadas por comas: coincide si
+  // la factura contiene AL MENOS UNA de ellas (ej. diesel,gasoleo a).── */
 function filtrar(){
-  const q=(document.getElementById('buscar').value||'').toLowerCase();
+ const terminos=(document.getElementById('buscar').value||'').toLowerCase()
+    .split(',').map(s=>s.trim()).filter(Boolean);
   const anio=document.getElementById('filtroAnio').value;
   const empresa=document.getElementById('filtroEmpresa').value;
   listaFiltrada = tickets.filter(t=>{
-    const okQ = !q || (t.empresa||'').toLowerCase().includes(q)
+    const okQ = terminos.length===0 || terminos.some(q =>
+      (t.empresa||'').toLowerCase().includes(q)
       ||(t.fecha||'').toLowerCase().includes(q)
       ||(t.numero||'').toLowerCase().includes(q)
       ||(t.cif||'').toLowerCase().includes(q)
       ||(t.receptor_nombre||'').toLowerCase().includes(q)
       ||(t.total||'').toLowerCase().includes(q)
       ||(t.metodo_pago||'').toLowerCase().includes(q)
-      ||(t.items||[]).some(i=>(i.descripcion||'').toLowerCase().includes(q));
+      ||(t.items||[]).some(i=>(i.descripcion||'').toLowerCase().includes(q)));
     const okA = !anio || anioFecha(t)===anio;
     const okE = !empresa || empresaCarpeta(t)===empresa;
     const okEsp = !filtroEspecial

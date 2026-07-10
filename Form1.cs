@@ -607,6 +607,7 @@ namespace FACTicket_Scanner
                 btnRepetir.Enabled = true;
                 btnRotar.Enabled = true;
                 btnCapturar.Enabled = false;
+                panelGuardar.chkExtraerGemini.Checked = true; // por defecto activado al capturar
                 lblEstado.Text = "📸 Foto capturada – ajusta y pulsa Guardar";
 
                 Log("BtnCapturar_Click: llamando Reprocesar");
@@ -620,6 +621,71 @@ namespace FACTicket_Scanner
                 VolverALive();
             }
         }
+        /* private void BtnCapturar_Click(object? sender, EventArgs e)
+         {
+             Log("BtnCapturar_Click: inicio");
+
+             try
+             {
+                 if (!camara.EstaConectada)
+                 {
+                     MessageBox.Show("No hay imagen disponible.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                     return;
+                 }
+
+                 Log("BtnCapturar_Click: parando timer");
+                 camara.PausarTimer();
+
+                 Log("BtnCapturar_Click: clonando frame");
+                 fotoCapturada?.Dispose();
+                 fotoCapturada = camara.CapturarFrame(GetLastFrame());
+                 if (fotoCapturada == null || fotoCapturada.Empty())
+                 {
+                     MessageBox.Show("No hay imagen disponible.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                     camara.ReanudarTimer();
+                     return;
+                 }
+
+                 rotacionActual = 0;
+                 Log("BtnCapturar_Click: frame clonado OK, size=" + fotoCapturada.Size());
+
+                 Log("BtnCapturar_Click: llamando CalcularAjustesAutomaticos");
+                 var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
+                 Log("BtnCapturar_Click: CalcularAjustesAutomaticos OK");
+                 panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
+                 panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
+                 panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
+
+                 panelAjustes.trkBlock.Value = 25;
+                 panelAjustes.trkC.Value = 10;
+                 panelAjustes.trkNitidez.Value = 1;
+                 panelAjustes.trkGrueso.Value = 0;
+                 panelAjustes.trkUmbral.Value = 0;
+                 panelAjustes.trkMargen.Value = 5;
+                 panelAjustes.trkMargenSup.Value = 0;
+                 panelAjustes.trkMargenInf.Value = 0;
+                 panelAjustes.trkMargenIzq.Value = 0;
+                 panelAjustes.trkMargenDer.Value = 0;
+                 Log("BtnCapturar_Click: sliders reseteados OK");
+
+                 modoCaptura = true;
+                 panelGuardar.btnGuardar.Enabled = true;
+                 btnRepetir.Enabled = true;
+                 btnRotar.Enabled = true;
+                 btnCapturar.Enabled = false;
+                 lblEstado.Text = "📸 Foto capturada – ajusta y pulsa Guardar";
+
+                 Log("BtnCapturar_Click: llamando Reprocesar");
+                 Reprocesar();
+                 Log("BtnCapturar_Click: Reprocesar OK - fin");
+             }
+             catch (Exception ex)
+             {
+                 Log("BtnCapturar_Click: EXCEPCION -> " + ex);
+                 MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                 VolverALive();
+             }
+         }*/
 
         // Último frame recibido por FrameReady
         private Mat? _ultimoFrame = null;
@@ -712,6 +778,83 @@ namespace FACTicket_Scanner
                 {
                     await album.EditarFacturaCompleta(rutaJsonEnCurso, copiaImgEdicion, copiaOriginalEdicion,
                         panelGuardar.chkGuardarOriginal.Checked, panelGuardar.chkGuardarJpg.Checked,
+                        panelGuardar.chkGuardarPdf.Checked, panelGuardar.chkExtraerGemini.Checked, MostrarRevisionEmbebida);
+                    lblEstado.Text = "✅ Factura actualizada.";
+                    DialogoAutoConfirmar.Aviso("La factura se editó y guardó correctamente.", "Éxito", 2);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error al editar la factura:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+                {
+                    copiaImgEdicion.Dispose();
+                    copiaOriginalEdicion.Dispose();
+                    rutaJsonEdicionActual = null;
+                    this.UseWaitCursor = false;
+                    btnCapturar.Enabled = true;
+                    panelRevision.Visible = false;   
+                    panelAjustes.Visible = true;     
+                    LimpiarImagenActual();
+                    VolverALive();
+                }
+                return;
+            }
+
+            Mat copiaImg = resultadoProcesado.Clone();
+            Mat copiaOriginal = fotoCapturada.Clone();
+            int rot = rotacionActual;
+
+            bool perteneceALote = indiceColaActual >= 0 && indiceColaActual < colaArchivos.Count;
+
+            panelGuardar.btnGuardar.Enabled = false;
+            btnRotar.Enabled = false;
+            btnRepetir.Enabled = false;
+            btnCapturar.Enabled = false;
+            this.UseWaitCursor = true;
+
+            guardadoEnCurso = true;
+            album.GuardarImagen(copiaImg, copiaOriginal, rot, ajustes,
+                panelGuardar.chkGuardarOriginal.Checked, panelGuardar.chkGuardarJpg.Checked,
+                panelGuardar.chkGuardarPdf.Checked, panelGuardar.chkExtraerGemini.Checked,
+                a => album.GuardarAjustes(a),
+                msg => { lblEstado.Text = msg; },
+                () => { this.UseWaitCursor = false; btnCapturar.Enabled = true; },
+                () =>
+                {
+                    panelRevision.Visible = false;
+                    panelAjustes.Visible = true;
+                    if (perteneceALote) LimpiarImagenActual();
+                    else VolverALive();
+
+                    GuardadoTerminado?.Invoke(this, EventArgs.Empty);
+                    guardadoEnCurso = false;
+                    if (perteneceALote) CargarSiguienteDeCola();
+                },
+                MostrarRevisionEmbebida);
+        }
+        /*private async void BtnGuardar_Click(object? sender, EventArgs e)
+        {
+            CancelarAutoGuardadoLote();
+            if (resultadoProcesado == null || fotoCapturada == null) return;
+
+            if (rutaJsonEdicionActual != null)
+            {
+                string rutaJsonEnCurso = rutaJsonEdicionActual;
+                Mat copiaImgEdicion = resultadoProcesado.Clone();
+                Mat copiaOriginalEdicion = fotoCapturada.Clone();
+
+                panelGuardar.btnGuardar.Enabled = false;
+                btnRotar.Enabled = false;
+                btnRepetir.Enabled = false;
+                btnCapturar.Enabled = false;
+                this.UseWaitCursor = true;
+                lblEstado.Text = "🔎 Reescaneando y extrayendo datos con Gemini...";
+
+                try
+                {
+                    await album.EditarFacturaCompleta(rutaJsonEnCurso, copiaImgEdicion, copiaOriginalEdicion,
+                        panelGuardar.chkGuardarOriginal.Checked, panelGuardar.chkGuardarJpg.Checked,
                         panelGuardar.chkGuardarPdf.Checked, MostrarRevisionEmbebida);
                     lblEstado.Text = "✅ Factura actualizada.";
                     DialogoAutoConfirmar.Aviso("La factura se editó y guardó correctamente.", "Éxito", 2);
@@ -766,7 +909,7 @@ namespace FACTicket_Scanner
                     if (perteneceALote) CargarSiguienteDeCola();
                 },
                 MostrarRevisionEmbebida);
-        }
+        }*/
 
         // -----------------------------------------------------------------------
         // Muestra el panel de revisión de datos (Gemini) dentro del hueco de
@@ -883,6 +1026,7 @@ namespace FACTicket_Scanner
                 btnRepetir.Enabled = true;
                 btnRotar.Enabled = true;
                 btnCapturar.Enabled = false;
+                panelGuardar.chkExtraerGemini.Checked = true; // por defecto activado al abrir/agregar lote
 
                 ActualizarVisibilidadLote();
                 lblEstado.Text = colaArchivos.Count > 1
@@ -898,6 +1042,91 @@ namespace FACTicket_Scanner
                 CargarSiguienteDeCola();
             }
         }
+        /*private void CargarSiguienteDeCola()
+        {
+            indiceColaActual++;
+
+            if (indiceColaActual >= colaArchivos.Count)
+            {
+                bool eraLoteMultiple = colaArchivos.Count > 1;
+                colaArchivos.Clear();
+                indiceColaActual = -1;
+                ActualizarVisibilidadLote();
+                VolverALive();
+                if (eraLoteMultiple)
+                {
+                    lblEstado.Text = "✅ Lote completado – " + lblEstado.Text;
+                    MostrarLogo();
+                }
+                return;
+            }
+
+            string ruta = colaArchivos[indiceColaActual];
+            try
+            {
+                Mat img = Cv2.ImRead(ruta);
+                if (img.Empty())
+                {
+                    DialogoAutoConfirmar.Aviso($"No se pudo leer la imagen:\n{ruta}", "Error");
+                    CargarSiguienteDeCola();
+                    return;
+                }
+
+                var duplicado = album.BuscarDuplicadoPorPHash(img, out int distanciaPHash);
+                if (duplicado != null)
+                {
+                    string resumen =
+                        $"Empresa: {duplicado.Empresa}\n" +
+                        $"Nº Factura: {(string.IsNullOrWhiteSpace(duplicado.Numero) ? "(sin número)" : duplicado.Numero)}\n" +
+                        $"Fecha: {duplicado.Fecha}\n" +
+                        $"Total: {duplicado.Total}\n" +
+                        $"Guardada el: {duplicado.FechaGuardado}\n" +
+                        $"Coincidencia: {63 - distanciaPHash}/63 bits";
+
+                    bool continuar = DialogoAutoConfirmar.Confirmar(
+                        $"Esta imagen parece coincidir con una factura ya escaneada:\n\n{resumen}\n\n¿Continuar de todos modos?",
+                        "Posible imagen duplicada", resultadoPorDefecto: false);
+
+                    if (!continuar)
+                    {
+                        img.Dispose();
+                        CargarSiguienteDeCola();
+                        return;
+                    }
+                }
+
+                fotoCapturada?.Dispose();
+                fotoCapturada = img;
+                rotacionActual = 0;
+                modoCaptura = true;
+                ResetearZoom();
+
+                var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
+                panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
+                panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
+                panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
+                panelAjustes.trkNitidez.Value = 1;
+                panelAjustes.trkUmbral.Value = 0;
+
+                panelGuardar.btnGuardar.Enabled = true;
+                btnRepetir.Enabled = true;
+                btnRotar.Enabled = true;
+                btnCapturar.Enabled = false;
+
+                ActualizarVisibilidadLote();
+                lblEstado.Text = colaArchivos.Count > 1
+                    ? "📂 Ajusta la imagen y pulsa Guardar"
+                    : "📂 Imagen cargada – ajusta y pulsa Guardar";
+
+                Reprocesar();
+                IniciarAutoGuardadoLote();
+            }
+            catch (Exception ex)
+            {
+                DialogoAutoConfirmar.Aviso($"Error: {ex.Message}", "Error");
+                CargarSiguienteDeCola();
+            }
+        }*/
 
         // -----------------------------------------------------------------------
         // Muestra/oculta el contador y el botón "Salir del lote"
@@ -1169,6 +1398,7 @@ namespace FACTicket_Scanner
             catch { return false; }
         }
 
+
         private async void btnEditarVisor_Click(object? sender, EventArgs e)
         {
             await RefrescarFacturaVisorActual();
@@ -1221,9 +1451,69 @@ namespace FACTicket_Scanner
             btnRotar.Enabled = true;
             btnCapturar.Enabled = false;
 
+            // Al editar, por defecto NO se vuelve a llamar a Gemini (se
+            // reutilizan los datos ya guardados); el usuario puede marcarlo
+            // manualmente si quiere forzar un reescaneo.
+            panelGuardar.chkExtraerGemini.Checked = false;
+
             lblEstado.Text = "✏️ Editando factura – ajusta y pulsa Guardar";
             Reprocesar();
         }
+        /*private async void btnEditarVisor_Click(object? sender, EventArgs e)
+        {
+            await RefrescarFacturaVisorActual();
+            if (string.IsNullOrEmpty(rutaImagenVisorActual) || string.IsNullOrEmpty(rutaJsonVisorActual))
+            {
+                MessageBox.Show("No hay ninguna factura abierta en el visor.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string rutaImagenAbs = Path.Combine(Application.StartupPath, NombreCarpeta, rutaImagenVisorActual);
+            string rutaJsonAbs = Path.Combine(Application.StartupPath, NombreCarpeta, rutaJsonVisorActual);
+
+            if (!File.Exists(rutaImagenAbs) || !File.Exists(rutaJsonAbs))
+            {
+                MessageBox.Show("No se encontró la imagen o el JSON de esta factura.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string rutaOriginalAbs = Path.Combine(Path.GetDirectoryName(rutaImagenAbs)!, "original.jpg");
+            string rutaParaCargar = File.Exists(rutaOriginalAbs) ? rutaOriginalAbs : rutaImagenAbs;
+
+            Mat img = Cv2.ImRead(rutaParaCargar);
+            if (img.Empty())
+            {
+                MessageBox.Show("No se pudo leer la imagen de esta factura.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            btnCerrarVisor_Click(null, EventArgs.Empty);
+
+            rutaJsonEdicionActual = rutaJsonAbs;
+            colaArchivos.Clear();
+            indiceColaActual = -1;
+
+            fotoCapturada?.Dispose();
+            fotoCapturada = img;
+            rotacionActual = 0;
+            modoCaptura = true;
+            ResetearZoom();
+
+            var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
+            panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
+            panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
+            panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
+            panelAjustes.trkNitidez.Value = 1;
+            panelAjustes.trkUmbral.Value = 0;
+
+            panelGuardar.btnGuardar.Enabled = true;
+            btnRepetir.Enabled = true;
+            btnRotar.Enabled = true;
+            btnCapturar.Enabled = false;
+
+            lblEstado.Text = "✏️ Editando factura – ajusta y pulsa Guardar";
+            Reprocesar();
+        }*/
 
         // -----------------------------------------------------------------------
         // Visor web: botón ✕ (panelNavModal) -> cierra solo la vista previa
