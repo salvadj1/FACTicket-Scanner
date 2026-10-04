@@ -1393,6 +1393,13 @@ namespace FACTicket_Scanner
                 var root = doc.RootElement;
                 string accion = root.TryGetProperty("accion", out var ac) ? ac.GetString() ?? "" : "";
 
+                if (accion == "recargar")
+                {
+                    // Se difiere: RecargarVisor navega la propia página que envió el mensaje
+                    BeginInvoke(new Action(RecargarVisor));
+                    return;
+                }
+
                 if (accion == "cerrar")
                 {
                     rutaImagenVisorActual = null;
@@ -1783,6 +1790,24 @@ namespace FACTicket_Scanner
         private void buscarDuplicadosToolStripMenuItem_Click(object sender, EventArgs e)
         {
             new BuscarDuplicadosForm().ShowDialog(this);
+        }
+
+        private void cerrarTrimestreToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (var form = new CierreTrimestralForm())
+                form.ShowDialog(this);
+
+            // Los cambios (presentado/trimestre) se guardan en los datos.json:
+            // se regenera el panel de facturas para que se apliquen.
+            try
+            {
+                if (panelVisor.Visible) RecargarVisor();
+                else album.RegenerarAlbumInicial();
+            }
+            catch (Exception ex)
+            {
+                Log("cerrarTrimestre: error al actualizar panel - " + ex.Message);
+            }
         }
 
         private void conversorIMGPDFToolStripMenuItem_Click(object sender, EventArgs e)

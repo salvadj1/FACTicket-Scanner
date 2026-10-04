@@ -95,11 +95,13 @@ namespace FACTicket_Scanner
         <div class=""ctrl-grupo"">
           <label>Vista</label>
           <div id=""btns-vista"">
+            <button class=""btn-vista"" onclick=""recargarPanel()"" title=""Actualizar / recargar panel"">⟳</button>
             <button class=""btn-vista activo"" onclick=""setVista('empresa',this)"" title=""Por empresa"">🏢</button>
             <button class=""btn-vista"" onclick=""setVista('total_desc',this)"" title=""Mayor importe"">💰↓</button>
             <button class=""btn-vista"" onclick=""setVista('total_asc',this)"" title=""Menor importe"">💰↑</button>
             <button class=""btn-vista"" onclick=""setVista('fecha_desc',this)"" title=""Más recientes"">📅↓</button>
             <button class=""btn-vista"" onclick=""setVista('fecha_asc',this)"" title=""Más antiguos"">📅↑</button>
+            <button class=""btn-vista"" onclick=""setVista('guardado_desc',this)"" title=""Últimas añadidas"">🕒</button>
             <button class=""btn-vista"" onclick=""setVista('lista',this)"" title=""Vista lista"">☰</button>
           </div>
         </div>
@@ -419,6 +421,19 @@ const num = v => {
 };
 const eur = v => '€ ' + v.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});
 function isoFecha(t){ return (t.fecha||t.fecha_guardado||''); }
+// Fecha de guardado (yyyy-MM-dd HH:mm:ss) -> dd/MM/yyyy HH:mm. Vacía si no hay dato.
+function fmtGuardado(t){
+  const m=(t.fecha_guardado||'').trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+  if(!m) return '';
+  return m[3]+'/'+m[2]+'/'+m[1]+(m[4]?' '+m[4]+':'+m[5]:'');
+}
+// Color estable y distinto para cada trimestre presentado (etiqueta tipo 2026-2T).
+function colorTrimestre(lbl){
+  const m=(lbl||'').match(/(\d{4}).*?(\d)/);
+  if(!m) return null;
+  const n=parseInt(m[1],10)*4+parseInt(m[2],10);
+  return 'hsl('+Math.round((n*137.508)%360)+',70%,42%)';
+}
 // Reconoce yyyy-MM-dd, yyyy/MM/dd, dd/MM/yyyy y dd-MM-yyyy (igual que ExportarForm.ParsearFecha en C#).
 function parsearFechaFlexible(str){
   if(!str) return null;
@@ -634,6 +649,15 @@ function filtrarTrimestre(){
   dibujarIvaTrimestral();
 }
 
+/* ─── Recargar panel: pide a la app que regenere el HTML y lo recargue ─── */
+function recargarPanel(){
+  if(window.chrome && window.chrome.webview){
+    window.chrome.webview.postMessage({accion: 'recargar'});
+  } else {
+    location.reload();
+  }
+}
+
 /* ─── Vista ─── */
 function setVista(v, btn){
   vistaActual=v;
@@ -697,6 +721,7 @@ function renderizar(lista){
   else if(vistaActual==='total_asc') items.sort((a,b)=>num(a.total)-num(b.total));
   else if(vistaActual==='fecha_desc') items.sort((a,b)=>isoFecha(b).localeCompare(isoFecha(a)));
   else if(vistaActual==='fecha_asc') items.sort((a,b)=>isoFecha(a).localeCompare(isoFecha(b)));
+  else if(vistaActual==='guardado_desc') items.sort((a,b)=>(b.fecha_guardado||'').localeCompare(a.fecha_guardado||''));
 
   if(vistaActual==='empresa'){
     // Agrupar por empresa
@@ -732,10 +757,14 @@ function tarjetaHtml(t){
     ?`<div class=""lineas-txt"">${badgeLineas}<span class=""lineas-desc"">${lineasTexto}</span></div>`
     :`<div class=""ph"">Sin líneas</div>`;
   const clasePresentada=t.presentado?' presentada':'';
-  return `<div class=""tarjeta${clasePresentada}"" onclick=""abrirModal(${idx})"">
+  const colTrim=t.presentado?colorTrimestre(t.trimestre_presentado):null;
+  const estiloTrim=colTrim?` style=""border-bottom-color:${colTrim}"" title=""Presentada en ${t.trimestre_presentado}""`:'';
+  const guardado=fmtGuardado(t);
+  return `<div class=""tarjeta${clasePresentada}""${estiloTrim} onclick=""abrirModal(${idx})"">
     ${img}
     <div class=""resumen"">
       <div class=""fecha"">${t.fecha||'—'}</div>
+      ${guardado?`<div class=""fecha"" title=""Fecha de guardado"">➕ ${guardado}</div>`:''}
       <div class=""numero"">Nº ${t.numero||'—'}</div>
       ${badge}
     </div>
@@ -759,7 +788,8 @@ function renderLista(lista,c){
       total:t=>num(t.total),
       iva:t=>num(t.iva),
       tipo:t=>(t.tipo_documento||'').toLowerCase(),
-      metodo_pago:t=>(t.metodo_pago||'').toLowerCase()
+      metodo_pago:t=>(t.metodo_pago||'').toLowerCase(),
+      guardado:t=>t.fecha_guardado||''
     };
     const get=getters[ordenListaCol];
     ordenada=[...lista].sort((a,b)=>{
@@ -771,8 +801,10 @@ function renderLista(lista,c){
   const filas=ordenada.map(t=>{
     const idx=tickets.indexOf(t);
     const tieneTotal=t.total&&t.total.toString().trim()!=='';
+    const colTrim=t.presentado?colorTrimestre(t.trimestre_presentado):null;
+    const estiloTrim=colTrim?` style=""border-left:5px solid ${colTrim}"" title=""Presentada en ${t.trimestre_presentado}""`:'';
     return `<tr onclick=""abrirModal(${idx})"">
-      <td>${t.empresa||'—'}</td>
+      <td${estiloTrim}>${t.empresa||'—'}</td>
       <td>${t.fecha||'—'}</td>
       <td>${t.numero||'—'}</td>
       <td>${t.cif||'—'}</td>
@@ -780,6 +812,7 @@ function renderLista(lista,c){
       <td style=""text-align:right"">${t.iva?eur(num(t.iva)):'—'}</td>
       <td style=""text-align:right;font-weight:600;color:${tieneTotal?'#137333':'#c5221f'}"">${tieneTotal?eur(num(t.total)):'—'}</td>
       <td>${t.metodo_pago||'—'}</td>
+      <td>${fmtGuardado(t)||'—'}</td>
     </tr>`;
   }).join('');
   const flecha=col=> ordenListaCol===col ? (ordenListaAsc?' ▲':' ▼') : '';
@@ -793,6 +826,7 @@ function renderLista(lista,c){
       <th onclick=""ordenarLista('iva')"" style=""text-align:right;cursor:pointer"">IVA${flecha('iva')}</th>
       <th onclick=""ordenarLista('total')"" style=""text-align:right;cursor:pointer"">Total${flecha('total')}</th>
       <th onclick=""ordenarLista('metodo_pago')"" style=""cursor:pointer"">Pago${flecha('metodo_pago')}</th>
+      <th onclick=""ordenarLista('guardado')"" style=""cursor:pointer"">Añadida${flecha('guardado')}</th>
     </tr></thead>
     <tbody>${filas}</tbody>
   </table>`;

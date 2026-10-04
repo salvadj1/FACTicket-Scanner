@@ -202,7 +202,7 @@ namespace FACTicket_Scanner
             {
                 string estado = ticket.Presentado ? $" [ya: {ticket.TrimestrePresentado}]" : "";
                 string etiqueta = $"{ticket.Empresa} | {ticket.Fecha} | {ticket.Numero} | {ticket.Total}{estado}";
-                clbFacturas.Items.Add(new FacturaListItem(ticket, rutaJson, etiqueta), false);
+                clbFacturas.Items.Add(new FacturaListItem(ticket, rutaJson, etiqueta), ticket.Presentado); // ya presentadas -> marcadas
             }
 
             lblEstado.Text = $"{clbFacturas.Items.Count} factura(s) en el rango seleccionado.";
@@ -221,9 +221,15 @@ namespace FACTicket_Scanner
         private async System.Threading.Tasks.Task AplicarMarcadoAsync(bool presentar)
         {
             var seleccionadas = clbFacturas.CheckedItems.Cast<FacturaListItem>().ToList();
+            // Al presentar se ignoran las ya presentadas (vienen marcadas por defecto)
+            // para no sobrescribir el trimestre en el que se presentaron.
+            if (presentar)
+                seleccionadas = seleccionadas.Where(x => !x.Ticket.Presentado).ToList();
             if (!seleccionadas.Any())
             {
-                lblEstado.Text = "No hay facturas marcadas en la lista.";
+                lblEstado.Text = presentar
+                    ? "No hay facturas nuevas marcadas (las ya presentadas se ignoran)."
+                    : "No hay facturas marcadas en la lista.";
                 return;
             }
 
