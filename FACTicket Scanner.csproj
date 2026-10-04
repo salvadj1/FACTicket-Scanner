@@ -30,8 +30,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Update="facticket_logo.png">
-	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-	  </None>
+		<None Update="facticket_logo.png">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 </Project>
