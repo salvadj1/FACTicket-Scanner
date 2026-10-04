@@ -82,12 +82,19 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         // Guardar imagen — usa Gemini para extracción de datos
         // -----------------------------------------------------------------------
+        // rutaPdfOrigen: si la imagen procede de un PDF (ver Form1.CargarImagenEnMemoria),
+        // aquí llega la ruta del PDF original en disco. En ese caso, el
+        // "hueco" del PDF se rellena copiando ese archivo tal cual en vez de
+        // regenerarlo desde la imagen procesada (se guardan 4 archivos:
+        // PDF original, imagen original = página convertida, JSON e imagen
+        // procesada).
         public async void GuardarImagen(Mat imagenProcesada, Mat original, int rotacion,
             AjustesEscaner ajustes,
             bool guardarOriginal, bool guardarJpg, bool guardarPdf, bool extraerConGemini,
             Action<AjustesEscaner> guardarAjustes,
             Action<string> actualizarEstado, Action habilitarCapturar, Action guardadoTerminado,
-            Func<DatosTicket, System.Threading.Tasks.Task<DatosTicket?>> mostrarRevisionEmbebida)
+            Func<DatosTicket, System.Threading.Tasks.Task<DatosTicket?>> mostrarRevisionEmbebida,
+            string? rutaPdfOrigen = null)
         {
             using Mat _imagenProcesada = imagenProcesada;
             using Mat _original = original;
@@ -170,7 +177,15 @@ namespace FACTicket_Scanner
                 {
                     if (guardarJpg) Cv2.ImWrite(rutaProcesada, imagenProcesada);
                     if (guardarOriginal) Cv2.ImWrite(rutaOriginal, original);
-                    if (guardarPdf) GuardarComoPdf(imagenProcesada, rutaPdf);
+                    if (guardarPdf)
+                    {
+                        // Origen PDF: se conserva el PDF original tal cual en
+                        // vez de regenerarlo desde la imagen procesada.
+                        if (!string.IsNullOrEmpty(rutaPdfOrigen) && System.IO.File.Exists(rutaPdfOrigen))
+                            System.IO.File.Copy(rutaPdfOrigen, rutaPdf, overwrite: true);
+                        else
+                            PdfHelper.GuardarComoPdf(imagenProcesada, rutaPdf);
+                    }
                     ajustes.UltimaCarpetaGuardado = carpetaDestino;
                     guardarAjustes(ajustes);
 
@@ -349,65 +364,8 @@ namespace FACTicket_Scanner
             return nombre.Trim();
         }
 
-        // -----------------------------------------------------------------------
-        // Genera un PDF de una sola página embebiendo el JPG directamente
-        // (filtro DCTDecode), sin necesidad de librerías externas.
-        // -----------------------------------------------------------------------
-        private static void GuardarComoPdf(Mat imagen, string rutaPdf)
-        {
-            Cv2.ImEncode(".jpg", imagen, out byte[] jpgBytes);
-
-            // Tamaño de página en puntos (72 dpi), ajustado a la relación de aspecto
-            double anchoPx = imagen.Width, altoPx = imagen.Height;
-            double escala = Math.Min(595.0 / anchoPx, 842.0 / altoPx); // A4
-            int anchoPt = (int)(anchoPx * escala);
-            int altoPt = (int)(altoPx * escala);
-
-            var objetos = new List<byte[]>();
-            objetos.Add(Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"));
-            objetos.Add(Encoding.ASCII.GetBytes("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"));
-            objetos.Add(Encoding.ASCII.GetBytes(
-                $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {anchoPt} {altoPt}] " +
-                "/Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>"));
-
-            string colorSpace = imagen.Channels() == 1 ? "/DeviceGray" : "/DeviceRGB";
-            byte[] imgDict = Encoding.ASCII.GetBytes(
-                $"<< /Type /XObject /Subtype /Image /Width {imagen.Width} /Height {imagen.Height} " +
-                $"/ColorSpace {colorSpace} /BitsPerComponent 8 /Filter /DCTDecode /Length " + jpgBytes.Length + " >>\nstream\n");
-            byte[] imgFooter = Encoding.ASCII.GetBytes("\nendstream");
-            var imgObjeto = new byte[imgDict.Length + jpgBytes.Length + imgFooter.Length];
-            Buffer.BlockCopy(imgDict, 0, imgObjeto, 0, imgDict.Length);
-            Buffer.BlockCopy(jpgBytes, 0, imgObjeto, imgDict.Length, jpgBytes.Length);
-            Buffer.BlockCopy(imgFooter, 0, imgObjeto, imgDict.Length + jpgBytes.Length, imgFooter.Length);
-            objetos.Add(imgObjeto);
-
-            string contenido = $"q {anchoPt} 0 0 {altoPt} 0 0 cm /Im0 Do Q";
-            byte[] contenidoBytes = Encoding.ASCII.GetBytes(contenido);
-            objetos.Add(Encoding.ASCII.GetBytes($"<< /Length {contenidoBytes.Length} >>\nstream\n")
-                .Concat(contenidoBytes).Concat(Encoding.ASCII.GetBytes("\nendstream")).ToArray());
-
-            using var ms = new System.IO.MemoryStream();
-            void Escribir(string s) => ms.Write(Encoding.ASCII.GetBytes(s), 0, Encoding.ASCII.GetByteCount(s));
-
-            Escribir("%PDF-1.4\n");
-            var offsets = new List<long>();
-            for (int i = 0; i < objetos.Count; i++)
-            {
-                offsets.Add(ms.Position);
-                Escribir($"{i + 1} 0 obj\n");
-                ms.Write(objetos[i], 0, objetos[i].Length);
-                Escribir("\nendobj\n");
-            }
-
-            long xrefOffset = ms.Position;
-            Escribir($"xref\n0 {objetos.Count + 1}\n0000000000 65535 f \n");
-            foreach (long off in offsets)
-                Escribir($"{off:D10} 00000 n \n");
-
-            Escribir($"trailer\n<< /Size {objetos.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF");
-
-            System.IO.File.WriteAllBytes(rutaPdf, ms.ToArray());
-        }
+        // NOTA: GuardarComoPdf se movió a PdfHelper.cs (clase reutilizable
+        // en otros proyectos). Ver llamadas a PdfHelper.GuardarComoPdf(...).
 
         // -----------------------------------------------------------------------
         // Resuelve el nombre de carpeta de empresa a usar: si ya existe una
@@ -597,7 +555,7 @@ namespace FACTicket_Scanner
 
             if (guardarJpg) Cv2.ImWrite(rutaProcesada, imagenProcesada);
             if (guardarOriginal) Cv2.ImWrite(rutaOriginal, original);
-            if (guardarPdf) GuardarComoPdf(imagenProcesada, rutaPdf);
+            if (guardarPdf) PdfHelper.GuardarComoPdf(imagenProcesada, rutaPdf);
 
             // Solo se reescanea con Gemini si el usuario lo pide explícitamente
             // (checkbox "Datos (Gemini)"). Si no, se reutilizan los datos ya
@@ -630,7 +588,7 @@ namespace FACTicket_Scanner
 
             if (guardarJpg) Cv2.ImWrite(rutaProcesada, imagenProcesada);
             if (guardarOriginal) Cv2.ImWrite(rutaOriginal, original);
-            if (guardarPdf) GuardarComoPdf(imagenProcesada, rutaPdf);
+            if (guardarPdf) PdfHelper.GuardarComoPdf(imagenProcesada, rutaPdf);
 
             DatosTicket nuevosDatos = await GeminiAPI.ExtraerDatosFactura(original);
 

@@ -104,8 +104,22 @@ namespace FACTicket_Scanner
           </div>
         </div>
         <div class=""ctrl-grupo"">
+          <label>Tamaño</label>
+          <input type=""range"" id=""sliderMiniatura"" min=""80"" max=""400"" step=""5"" value=""120"" oninput=""ajustarTamanoMiniatura(this.value)"">
+        </div>
+        <div class=""ctrl-grupo"">
           <label>Año</label>
           <select id=""filtroAnio"" onchange=""sincronizarAnio(this.value,true);filtrar()""><option value="""">Todos</option></select>
+        </div>
+        <div class=""ctrl-grupo"">
+          <label>Trimestre</label>
+          <select id=""filtroTrimestre"" onchange=""filtrar()"">
+            <option value="""">Todos</option>
+            <option value=""1"">T1</option>
+            <option value=""2"">T2</option>
+            <option value=""3"">T3</option>
+            <option value=""4"">T4</option>
+          </select>
         </div>
         <div class=""ctrl-grupo"">
           <label>Empresa</label>
@@ -259,7 +273,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
   border-radius:12px;padding:1px 9px;font-size:.75em;}
 .empresa-cab .suma{margin-left:auto;font-size:.82em;color:var(--gris);font-weight:500;}
 .galeria{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--mini-w,160px),1fr));
   gap:10px;padding:12px;
   background:#fff;border-radius:0 0 10px 10px;
   box-shadow:0 1px 4px rgba(0,0,0,.06);
@@ -272,13 +286,14 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
   background:#e9ebee;box-shadow:0 1px 3px rgba(0,0,0,.08);
 }
 .tarjeta:hover{transform:translateY(-3px);box-shadow:0 6px 16px rgba(0,0,0,.13);}
+.tarjeta.presentada{border-bottom:4px solid var(--rojo);}
 .tarjeta img{
-  width:100%;height:110px;object-fit:cover;object-position:top;display:block;
+  width:100%;height:var(--mini-h,110px);object-fit:cover;object-position:top;display:block;
   filter:contrast(1.15) saturate(1.05);
   box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);
 }
 .img-wrap{position:relative;}
-.lineas-txt{position:relative;height:110px;padding:6px 8px;background:#f8f9fa;
+.lineas-txt{position:relative;height:var(--mini-h,110px);padding:6px 8px;background:#f8f9fa;
   overflow:hidden;display:flex;align-items:flex-start;}
 .lineas-desc{font-size:.72em;color:#444;line-height:1.3;}
 .badge-lineas{
@@ -286,7 +301,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
   background:rgba(0,0,0,.55);color:#fff;font-size:.68em;
   padding:2px 6px;border-radius:10px;
 }
-.tarjeta .ph{height:110px;background:#eee;display:flex;align-items:center;
+.tarjeta .ph{height:var(--mini-h,110px);background:#eee;display:flex;align-items:center;
   justify-content:center;color:#aaa;font-size:.78em;}
 .tarjeta .resumen{padding:8px;}
 .tarjeta .fecha{font-size:.72em;color:#888;}
@@ -434,6 +449,7 @@ let filtroEspecial = null; // null | 'sinTotal' | 'sinFecha' — activado desde 
 /* ─── Cambio de pestaña Facturas/Albaranes ─── */
 function resetSelectores(){
   document.getElementById('filtroAnio').innerHTML='<option value="""">Todos</option>';
+  document.getElementById('filtroTrimestre').value='';
   document.getElementById('filtroEmpresa').innerHTML='<option value="""">Todas</option>';
   document.getElementById('anioSel').innerHTML='';
   document.getElementById('buscar').value='';
@@ -626,12 +642,22 @@ function setVista(v, btn){
   renderizar(listaFiltrada);
 }
 
+// Slider de tamaño de miniatura: la altura se deriva del ancho (relación
+// aproximada 1.45:1, la misma que ya tenían las tarjetas a 160x110).
+function ajustarTamanoMiniatura(anchoPx){
+  const w = parseInt(anchoPx, 10);
+  const h = Math.round(w / 1.45);
+  document.documentElement.style.setProperty('--mini-w', w+'px');
+  document.documentElement.style.setProperty('--mini-h', h+'px');
+}
+
 /* ─── Filtrar ─Búsqueda por varias palabras clave separadas por comas: coincide si
   // la factura contiene AL MENOS UNA de ellas (ej. diesel,gasoleo a).── */
 function filtrar(){
  const terminos=(document.getElementById('buscar').value||'').toLowerCase()
     .split(',').map(s=>s.trim()).filter(Boolean);
   const anio=document.getElementById('filtroAnio').value;
+  const trimestre=document.getElementById('filtroTrimestre').value;
   const empresa=document.getElementById('filtroEmpresa').value;
   listaFiltrada = tickets.filter(t=>{
     const okQ = terminos.length===0 || terminos.some(q =>
@@ -644,11 +670,12 @@ function filtrar(){
       ||(t.metodo_pago||'').toLowerCase().includes(q)
       ||(t.items||[]).some(i=>(i.descripcion||'').toLowerCase().includes(q)));
     const okA = !anio || anioFecha(t)===anio;
+    const okT = !trimestre || Math.ceil(mesFecha(t)/3)===parseInt(trimestre);
     const okE = !empresa || empresaCarpeta(t)===empresa;
     const okEsp = !filtroEspecial
       || (filtroEspecial==='sinTotal' && (!t.total||num(t.total)===0))
       || (filtroEspecial==='sinFecha' && mesFecha(t)===0);
-    return okQ && okA && okE && okEsp;
+    return okQ && okA && okT && okE && okEsp;
   });
   document.getElementById('contador').textContent = listaFiltrada.length+' resultado(s)';
   renderStats(listaFiltrada);
@@ -704,7 +731,8 @@ function tarjetaHtml(t){
   const img=lineasTexto
     ?`<div class=""lineas-txt"">${badgeLineas}<span class=""lineas-desc"">${lineasTexto}</span></div>`
     :`<div class=""ph"">Sin líneas</div>`;
-  return `<div class=""tarjeta"" onclick=""abrirModal(${idx})"">
+  const clasePresentada=t.presentado?' presentada':'';
+  return `<div class=""tarjeta${clasePresentada}"" onclick=""abrirModal(${idx})"">
     ${img}
     <div class=""resumen"">
       <div class=""fecha"">${t.fecha||'—'}</div>

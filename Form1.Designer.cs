@@ -71,6 +71,7 @@ namespace FACTicket_Scanner
             this.panelBotones = new System.Windows.Forms.Panel();
             this.panelVisor = new System.Windows.Forms.Panel();
             this.webViewAlbum = new Microsoft.Web.WebView2.WinForms.WebView2();
+            this.cerrarTrimestreToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.panelNavModal.SuspendLayout();
             this.panelBarraVisor.SuspendLayout();
@@ -225,7 +226,8 @@ namespace FACTicket_Scanner
             this.utilidadesToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.conversorIMGPDFToolStripMenuItem,
             this.analizarPhashDeTodasLasFacturasToolStripMenuItem,
-            this.buscarDuplicadosToolStripMenuItem});
+            this.buscarDuplicadosToolStripMenuItem,
+            this.cerrarTrimestreToolStripMenuItem});
             this.utilidadesToolStripMenuItem.Name = "utilidadesToolStripMenuItem";
             this.utilidadesToolStripMenuItem.Size = new System.Drawing.Size(81, 23);
             this.utilidadesToolStripMenuItem.Text = "Utilidades";
@@ -605,6 +607,13 @@ namespace FACTicket_Scanner
             this.webViewAlbum.TabIndex = 0;
             this.webViewAlbum.ZoomFactor = 1D;
             // 
+            // cerrarTrimestreToolStripMenuItem
+            // 
+            this.cerrarTrimestreToolStripMenuItem.Name = "cerrarTrimestreToolStripMenuItem";
+            this.cerrarTrimestreToolStripMenuItem.Size = new System.Drawing.Size(296, 24);
+            this.cerrarTrimestreToolStripMenuItem.Text = "Cerrar Trimestre";
+            this.cerrarTrimestreToolStripMenuItem.Click += new System.EventHandler(this.cerrarTrimestreToolStripMenuItem_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -689,5 +698,6 @@ namespace FACTicket_Scanner
         private System.Windows.Forms.ToolStripMenuItem analizarPhashDeTodasLasFacturasToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem exportarToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem buscarDuplicadosToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem cerrarTrimestreToolStripMenuItem;
     }
 }

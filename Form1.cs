@@ -27,6 +27,7 @@ namespace FACTicket_Scanner
         private Mat? fotoCapturada = null;       // foto original cuando el usuario pulsa "Tomar foto"
         private Mat? resultadoProcesado = null;  // resultado procesado actual
         private int rotacionActual = 0;
+        private int ultimaRotacion = 0;      // última rotación elegida por el usuario; se aplica a las siguientes imágenes cargadas
         private bool modoCaptura = false;        // true = mostrando foto procesada, false = live
         private bool modoSimulado = false;
         private bool guardadoEnCurso = false;
@@ -186,6 +187,7 @@ namespace FACTicket_Scanner
             this.MinimumSize = new System.Drawing.Size(800, 600);
 
             ConstruirToolBar();
+            ConstruirBotonRecargarVisor();
             AsignarIconosMenu();
             ConfigurarZoomImagen();
 
@@ -460,7 +462,7 @@ namespace FACTicket_Scanner
 
             // Panel de Guardar: fila Rotar/Repetir/Guardar + fila de checkboxes
             panelGuardar = new PanelGuardarFactura { Left = 0, Top = 12, Width = wP, Height = 84 };
-            panelGuardar.btnRotar.Click += (s, e) => { CancelarAutoGuardadoLote(); rotacionActual = (rotacionActual + 90) % 360; Reprocesar(); };
+            panelGuardar.btnRotar.Click += (s, e) => { CancelarAutoGuardadoLote(); rotacionActual = (rotacionActual + 90) % 360; ultimaRotacion = rotacionActual; Reprocesar(); };
             panelGuardar.btnRepetir.Click += BtnRepetir_Click;
             panelGuardar.btnGuardar.Click += BtnGuardar_Click;
             panelGuardar.btnCancelarAuto.Click += (s, e) => CancelarAutoGuardadoLote();
@@ -580,7 +582,7 @@ namespace FACTicket_Scanner
                     return;
                 }
 
-                rotacionActual = 0;
+                rotacionActual = ultimaRotacion; // recuerda la última rotación usada
                 Log("BtnCapturar_Click: frame clonado OK, size=" + fotoCapturada.Size());
 
                 Log("BtnCapturar_Click: llamando CalcularAjustesAutomaticos");
@@ -594,7 +596,7 @@ namespace FACTicket_Scanner
                 panelAjustes.trkC.Value = 10;
                 panelAjustes.trkNitidez.Value = 1;
                 panelAjustes.trkGrueso.Value = 0;
-                panelAjustes.trkUmbral.Value = 10;
+                // Umbral fijo: NO se resetea al cargar/capturar; se mantiene el valor elegido por el usuario.
                 panelAjustes.trkMargen.Value = 5;
                 panelAjustes.trkMargenSup.Value = 0;
                 panelAjustes.trkMargenInf.Value = 0;
@@ -997,9 +999,12 @@ namespace FACTicket_Scanner
                         $"Guardada el: {duplicado.FechaGuardado}\n" +
                         $"Coincidencia: {63 - distanciaPHash}/63 bits";
 
-                    bool continuar = DialogoAutoConfirmar.Confirmar(
+                    // Vista previa lado a lado: original (ya guardada) y duplicada
+                    // (recién añadida), con 30 s de cuenta atrás para decidir.
+                    bool continuar = DialogoAutoConfirmar.ConfirmarDuplicadoConVistaPrevia(
+                        img, ObtenerRutaImagenFactura(duplicado),
                         $"Esta imagen parece coincidir con una factura ya escaneada:\n\n{resumen}\n\n¿Continuar de todos modos?",
-                        "Posible imagen duplicada", resultadoPorDefecto: false);
+                        "Posible imagen duplicada", resultadoPorDefecto: false, segundos: 30);
 
                     if (!continuar)
                     {
@@ -1011,7 +1016,7 @@ namespace FACTicket_Scanner
 
                 fotoCapturada?.Dispose();
                 fotoCapturada = img;
-                rotacionActual = 0;
+                rotacionActual = ultimaRotacion; // recuerda la última rotación usada
                 modoCaptura = true;
                 ResetearZoom();
 
@@ -1020,7 +1025,7 @@ namespace FACTicket_Scanner
                 panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
                 panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
                 panelAjustes.trkNitidez.Value = 1;
-                panelAjustes.trkUmbral.Value = 10;
+                // Umbral fijo: NO se resetea al cargar/capturar; se mantiene el valor elegido por el usuario.
 
                 panelGuardar.btnGuardar.Enabled = true;
                 btnRepetir.Enabled = true;
@@ -1291,6 +1296,76 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
+        // Devuelve la ruta absoluta de la imagen de una factura ya guardada
+        // (original.jpg junto a su datos.json; si no existe, la imagen
+        // procesada). Devuelve null si no se encuentra ninguna.
+        // -----------------------------------------------------------------------
+        private string? ObtenerRutaImagenFactura(DatosTicket t)
+        {
+            string raiz = Path.Combine(Application.StartupPath, NombreCarpeta);
+
+            if (!string.IsNullOrWhiteSpace(t.JsonRelativa))
+            {
+                string? carpeta = Path.GetDirectoryName(Path.Combine(raiz, t.JsonRelativa));
+                if (carpeta != null)
+                {
+                    string original = Path.Combine(carpeta, "original.jpg");
+                    if (File.Exists(original)) return original;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(t.ImagenRelativa))
+            {
+                string procesada = Path.Combine(raiz, t.ImagenRelativa);
+                if (File.Exists(procesada)) return procesada;
+            }
+            return null;
+        }
+
+        // -----------------------------------------------------------------------
+        // Visor web: regenera el HTML del panel de facturas desde disco y lo
+        // vuelve a cargar. Reutilizable desde cualquier punto que modifique
+        // facturas (botón ⟳ del toolbar, diálogos que cambian datos, etc.).
+        // -----------------------------------------------------------------------
+        private void RecargarVisor()
+        {
+            try
+            {
+                panelNavModal.Visible = false;   // el modal se cierra al recargar la página
+                album.RegenerarAlbumInicial();
+                visorToolStripMenuItem_Click(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                Log("RecargarVisor: error - " + ex.Message);
+            }
+        }
+
+        // Botón ⟳ del toolbar del visor
+        private void btnRecargarVisor_Click(object? sender, EventArgs e) => RecargarVisor();
+
+        // Crea el botón ⟳ junto al ✕ en la barra del visor
+        private void ConstruirBotonRecargarVisor()
+        {
+            var btn = new Button
+            {
+                Name = "btnRecargarVisor",
+                Text = "⟳",
+                Dock = DockStyle.Right,
+                Width = 40,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = System.Drawing.Color.FromArgb(26, 115, 232),
+                ForeColor = System.Drawing.Color.White,
+                Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold)
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.Click += btnRecargarVisor_Click;
+            new ToolTip().SetToolTip(btn, "Actualizar panel de facturas");
+            panelBarraVisor.Controls.Add(btn);
+            btn.BringToFront(); // se acopla a la izquierda de btnCerrarVisor
+        }
+
+        // -----------------------------------------------------------------------
         // Visor web: botón ✕ → cierra y vuelve a la pantalla principal
         // -----------------------------------------------------------------------
         private void btnCerrarVisor_Click(object? sender, EventArgs e)
@@ -1444,7 +1519,7 @@ namespace FACTicket_Scanner
             panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
             panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
             panelAjustes.trkNitidez.Value = 1;
-            panelAjustes.trkUmbral.Value = 10;
+            // Umbral fijo: NO se resetea al cargar/capturar; se mantiene el valor elegido por el usuario.
 
             panelGuardar.btnGuardar.Enabled = true;
             btnRepetir.Enabled = true;

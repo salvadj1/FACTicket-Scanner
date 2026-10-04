@@ -97,6 +97,17 @@ namespace FACTicket_Scanner
         [JsonPropertyName("phash")]
         public string PHash { get; set; } = "";
 
+        // Indica si esta factura ya fue incluida en una declaración trimestral
+        // presentada. Se marca desde CierreTrimestralForm. Los datos.json
+        // guardados antes de esta propiedad simplemente la cargan como false.
+        [JsonPropertyName("presentado")]
+        public bool Presentado { get; set; } = false;
+
+        // Trimestre en el que se presentó, formato "AAAA-NT" (ej. "2026-2T").
+        // Vacío mientras Presentado sea false.
+        [JsonPropertyName("trimestre_presentado")]
+        public string TrimestrePresentado { get; set; } = "";
+
         // Uso interno: diagnóstico de fallo OCR (Bug C). No se serializa al
         // JSON final porque JsonIgnore lo excluye explícitamente.
         [JsonIgnore]

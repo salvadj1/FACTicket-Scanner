@@ -102,6 +102,166 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
+        // Diálogo Sí/No para posibles facturas duplicadas, con vista previa de
+        // las dos imágenes a pantalla partida (mitad izquierda = ORIGINAL ya
+        // guardada, mitad derecha = DUPLICADA recién añadida) y cuenta atrás.
+        //
+        // Parámetros:
+        //   imagenNueva          : imagen recién cargada (no se libera aquí).
+        //   rutaImagenExistente  : ruta de la imagen ya guardada (null = no disponible).
+        //   mensaje              : texto resumen mostrado bajo las imágenes.
+        //   titulo               : título de la ventana.
+        //   resultadoPorDefecto  : valor devuelto si se agota la cuenta atrás.
+        //   segundos             : duración de la cuenta atrás (30 por defecto).
+        // Devuelve true si el usuario elige "Sí" (continuar), false en caso contrario.
+        // Reutilizable en cualquier proyecto con OpenCvSharp (solo depende de
+        // ImageProcessor.MatToBitmap para convertir la imagen nueva).
+        // -----------------------------------------------------------------------
+        public static bool ConfirmarDuplicadoConVistaPrevia(OpenCvSharp.Mat imagenNueva, string? rutaImagenExistente,
+            string mensaje, string titulo, bool resultadoPorDefecto, int segundos = 30)
+        {
+            // Convierte a Bitmap sin bloquear el archivo en disco
+            System.Drawing.Bitmap? bmpExistente = null;
+            if (!string.IsNullOrEmpty(rutaImagenExistente) && System.IO.File.Exists(rutaImagenExistente))
+            {
+                try
+                {
+                    using var fs = System.IO.File.OpenRead(rutaImagenExistente);
+                    using var tmp = System.Drawing.Image.FromStream(fs);
+                    bmpExistente = new System.Drawing.Bitmap(tmp);
+                }
+                catch { bmpExistente = null; }
+            }
+            System.Drawing.Bitmap bmpNueva = ImageProcessor.MatToBitmap(imagenNueva);
+
+            // Ventana grande: ocupa el 90% del área de trabajo
+            var area = Screen.PrimaryScreen?.WorkingArea ?? new System.Drawing.Rectangle(0, 0, 1280, 800);
+            using var dlg = new Form
+            {
+                Text = titulo,
+                Width = (int)(area.Width * 0.9),
+                Height = (int)(area.Height * 0.9),
+                FormBorderStyle = FormBorderStyle.Sizable,
+                StartPosition = FormStartPosition.CenterScreen,
+                MaximizeBox = true,
+                MinimizeBox = false,
+                ShowInTaskbar = false,
+                KeyPreview = true
+            };
+
+            // --- Zona inferior: mensaje, contador y botones ---
+            var panelInferior = new Panel { Dock = DockStyle.Bottom, Height = 190 };
+            var lblMensaje = new Label
+            {
+                Text = mensaje,
+                Left = 15,
+                Top = 8,
+                AutoSize = false,
+                Width = 900,
+                Height = 110,
+                Font = new System.Drawing.Font(dlg.Font.FontFamily, 9.5f)
+            };
+            var lblContador = new Label
+            {
+                Left = 15,
+                Top = 122,
+                Width = 500,
+                Height = 20,
+                ForeColor = System.Drawing.Color.DimGray,
+                Font = new System.Drawing.Font(dlg.Font, System.Drawing.FontStyle.Bold)
+            };
+            var btnSi = new Button { Text = "Sí, continuar", Width = 140, Height = 34, DialogResult = DialogResult.Yes, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
+            var btnNo = new Button { Text = "No, descartar", Width = 140, Height = 34, DialogResult = DialogResult.No, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
+            panelInferior.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnSi, btnNo });
+            // Reposiciona botones (esquina inferior derecha) y ajusta el ancho del mensaje
+            void Reposicionar()
+            {
+                btnNo.Location = new System.Drawing.Point(panelInferior.ClientSize.Width - btnNo.Width - 15, panelInferior.Height - btnNo.Height - 15);
+                btnSi.Location = new System.Drawing.Point(btnNo.Left - btnSi.Width - 10, btnNo.Top);
+                lblMensaje.Width = Math.Max(200, btnSi.Left - 30);
+            }
+            panelInferior.Resize += (s, e) => Reposicionar();
+            dlg.AcceptButton = resultadoPorDefecto ? btnSi : btnNo;
+
+            // --- Zona de imágenes: 2 columnas del 50% cada una ---
+            var tabla = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
+            tabla.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            tabla.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            tabla.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+            tabla.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            Label Titulo(string texto, System.Drawing.Color fondo) => new Label
+            {
+                Text = texto,
+                Dock = DockStyle.Fill,
+                TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
+                BackColor = fondo,
+                ForeColor = System.Drawing.Color.White,
+                Font = new System.Drawing.Font(dlg.Font.FontFamily, 11f, System.Drawing.FontStyle.Bold)
+            };
+            PictureBox Imagen(System.Drawing.Image? img) => new PictureBox
+            {
+                Dock = DockStyle.Fill,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = System.Drawing.Color.FromArgb(40, 40, 40),
+                Image = img
+            };
+
+            tabla.Controls.Add(Titulo("ORIGINAL (ya guardada)", System.Drawing.Color.SeaGreen), 0, 0);
+            tabla.Controls.Add(Titulo("DUPLICADA (recién añadida)", System.Drawing.Color.Firebrick), 1, 0);
+            tabla.Controls.Add(Imagen(bmpExistente), 0, 1);
+            tabla.Controls.Add(Imagen(bmpNueva), 1, 1);
+
+            dlg.Controls.Add(tabla);
+            dlg.Controls.Add(panelInferior);
+            dlg.Shown += (s, e) =>
+            {
+                // Reposicionado inicial de botones y foco en el valor por defecto
+                Reposicionar();
+                (resultadoPorDefecto ? btnSi : btnNo).Focus();
+            };
+
+            // --- Cuenta atrás (misma mecánica que Confirmar) ---
+            int restantes = segundos;
+            lblContador.Text = $"Se autoconfirmará en {restantes}s...";
+            using var timer = new Timer { Interval = 1000 };
+            timer.Tick += (s, e) =>
+            {
+                restantes--;
+                if (restantes <= 0)
+                {
+                    timer.Stop();
+                    dlg.DialogResult = resultadoPorDefecto ? DialogResult.Yes : DialogResult.No;
+                    dlg.Close();
+                    return;
+                }
+                lblContador.Text = $"Se autoconfirmará en {restantes}s...";
+            };
+            dlg.Shown += (s, e) => timer.Start();
+            btnSi.Click += (s, e) => timer.Stop();
+            btnNo.Click += (s, e) => timer.Stop();
+
+            // Escape o clic derecho: cancela solo la cuenta atrás, sin cerrar el diálogo
+            void CancelarCuentaAtras()
+            {
+                if (!timer.Enabled) return;
+                timer.Stop();
+                lblContador.Text = "Cuenta atrás cancelada.";
+            }
+            dlg.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) CancelarCuentaAtras(); };
+            dlg.MouseDown += (s, e) => { if (e.Button == MouseButtons.Right) CancelarCuentaAtras(); };
+            tabla.MouseDown += (s, e) => { if (e.Button == MouseButtons.Right) CancelarCuentaAtras(); };
+            foreach (Control c in tabla.Controls) c.MouseDown += (s, e) => { if (e.Button == MouseButtons.Right) CancelarCuentaAtras(); };
+
+            bool resultado = dlg.ShowDialog() == DialogResult.Yes;
+
+            // Libera los bitmaps creados para la vista previa
+            bmpExistente?.Dispose();
+            bmpNueva.Dispose();
+            return resultado;
+        }
+
+        // -----------------------------------------------------------------------
         // Aviso simple (solo Aceptar) con cuenta atrás propia.
         // -----------------------------------------------------------------------
         public static void Aviso(string mensaje, string titulo, int segundos = Form1.Timeout_Dialogos)
