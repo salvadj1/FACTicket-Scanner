@@ -94,7 +94,7 @@ namespace FACTicket_Scanner
             Action<AjustesEscaner> guardarAjustes,
             Action<string> actualizarEstado, Action habilitarCapturar, Action guardadoTerminado,
             Func<DatosTicket, System.Threading.Tasks.Task<DatosTicket?>> mostrarRevisionEmbebida,
-            string? rutaPdfOrigen = null)
+            string? rutaPdfOrigen = null, ReglasDuplicados? reglasDuplicados = null)
         {
             using Mat _imagenProcesada = imagenProcesada;
             using Mat _original = original;
@@ -122,13 +122,6 @@ namespace FACTicket_Scanner
                 string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
                 var listaExistente = CargarTodasLasFacturas(carpetaTickets);
 
-                DatosTicket? duplicado = BuscarPosibleDuplicado(datos, listaExistente);
-                if (duplicado != null && !ConfirmarContinuarConDuplicado(duplicado))
-                {
-                    actualizarEstado("Guardado cancelado (factura duplicada)");
-                    return;
-                }
-
                 DatosTicket? datosRevisados = await mostrarRevisionEmbebida(datos);
                 if (datosRevisados == null) { actualizarEstado("Guardado cancelado"); return; }
 
@@ -152,6 +145,20 @@ namespace FACTicket_Scanner
                 {
                     subcarpetaEmpresa = "Sin_empresa";
                 }
+                // Comprobación de duplicado por datos con las reglas elegidas. Va tras
+                // revisar y resolver la carpeta de empresa, para comparar con el nombre
+                // canónico. Se compara solo contra su misma raíz: albaranes con
+                // albaranes, facturas/tickets con facturas/tickets.
+                var listaComparar = datosRevisados.TipoDocumento == "albaran"
+                    ? CargarTodasLasFacturas(CarpetaAlbaranes())
+                    : listaExistente;
+                DatosTicket? duplicado = BuscarPosibleDuplicado(datosRevisados, listaComparar, reglasDuplicados);
+                if (duplicado != null && !ConfirmarContinuarConDuplicado(duplicado))
+                {
+                    actualizarEstado("Guardado cancelado (documento duplicado)");
+                    return;
+                }
+
                 string nombreFactura = $"Factura_{DateTime.Now:yyyyMMdd_HHmmss}";
                 // Los albaranes NO entran en la contabilidad de facturas: van a una
                 // raíz "Albaranes" aparte, con la misma estructura Año/Empresa/Doc.
@@ -225,46 +232,27 @@ namespace FACTicket_Scanner
 
 
         // -----------------------------------------------------------------------
-        // Detección de facturas duplicadas.
-        // Criterio: misma Empresa + mismo Nº de factura. Si no hay número de
-        // factura (campo vacío en cualquiera de las dos), se usa como
-        // respaldo Empresa + Fecha + Total. La comparación es insensible a
-        // mayúsculas/minúsculas y a espacios sobrantes.
+        // Detección de documentos duplicados según las reglas elegidas por el
+        // usuario (Nº factura / Fecha / Total / Nombre empresa). Ver
+        // ReglasDuplicados: es duplicado si coinciden todas las reglas activas
+        // con valor en el documento nuevo (mínimo 2 comparables).
+        //
+        // Parámetros:
+        //   nuevo      : documento a guardar.
+        //   existentes : documentos ya guardados con los que comparar.
+        //   reglas     : reglas activas (null = valores por defecto).
+        // Devuelve el primer documento existente duplicado, o null.
         // -----------------------------------------------------------------------
-        private static DatosTicket? BuscarPosibleDuplicado(DatosTicket nuevo, List<DatosTicket> existentes)
+        private static DatosTicket? BuscarPosibleDuplicado(DatosTicket nuevo, List<DatosTicket> existentes, ReglasDuplicados? reglas)
         {
-            string empresaNueva = NormalizarComparable(nuevo.Empresa);
-            if (string.IsNullOrEmpty(empresaNueva)) return null; // sin empresa no hay base fiable de comparación
-
-            string numeroNuevo = NormalizarComparable(nuevo.Numero);
-
+            reglas ??= new ReglasDuplicados();
             foreach (var existente in existentes)
             {
-                string empresaExistente = NormalizarComparable(existente.Empresa);
-                if (empresaExistente != empresaNueva) continue;
-
-                string numeroExistente = NormalizarComparable(existente.Numero);
-
-                if (!string.IsNullOrEmpty(numeroNuevo) && !string.IsNullOrEmpty(numeroExistente))
-                {
-                    if (numeroNuevo == numeroExistente) return existente;
-                    continue; // misma empresa pero número distinto y ambos lo tienen → no es duplicado
-                }
-
-                // Respaldo: sin número de factura en alguno de los dos lados,
-                // comparamos Empresa + Fecha + Total.
-                string fechaNueva = NormalizarComparable(nuevo.Fecha);
-                string totalNuevo = NormalizarComparable(nuevo.Total);
-                string fechaExistente = NormalizarComparable(existente.Fecha);
-                string totalExistente = NormalizarComparable(existente.Total);
-
-                if (!string.IsNullOrEmpty(fechaNueva) && !string.IsNullOrEmpty(totalNuevo)
-                    && fechaNueva == fechaExistente && totalNuevo == totalExistente)
-                {
+                if (reglas.SonDuplicados(
+                        nuevo.Numero, nuevo.Fecha, nuevo.Total, nuevo.Empresa,
+                        existente.Numero, existente.Fecha, existente.Total, existente.Empresa))
                     return existente;
-                }
             }
-
             return null;
         }
 
@@ -848,6 +836,113 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
+        // Localiza todos los datos.json de facturas y albaranes guardados.
+        // Devuelve (ruta del datos.json, tipo "Factura" | "Albarán").
+        // -----------------------------------------------------------------------
+        private List<(string rutaJson, string tipo)> EnumerarDocumentos()
+        {
+            var documentos = new List<(string rutaJson, string tipo)>();
+            var raices = new[]
+            {
+                (System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta), "Factura"),
+                (CarpetaAlbaranes(), "Albarán")
+            };
+            foreach (var (raiz, tipo) in raices)
+            {
+                if (!System.IO.Directory.Exists(raiz)) continue;
+                foreach (string j in System.IO.Directory.GetFiles(raiz, "datos.json", System.IO.SearchOption.AllDirectories))
+                    documentos.Add((j, tipo));
+            }
+            return documentos;
+        }
+
+        // -----------------------------------------------------------------------
+        // Lista todas las facturas y albaranes con el pHash que ya tienen
+        // guardado (vacío si aún no se ha calculado). No modifica nada en disco.
+        // -----------------------------------------------------------------------
+        public List<ResultadoPHash> ListarPHashDocumentos()
+        {
+            var lista = new List<ResultadoPHash>();
+            foreach (var (rutaJson, tipo) in EnumerarDocumentos())
+            {
+                var datos = DatosTicket.CargarUnico(rutaJson);
+                if (datos == null)
+                {
+                    lista.Add(new ResultadoPHash { RutaJson = rutaJson, Tipo = tipo, Estado = "JSON ilegible" });
+                    continue;
+                }
+                lista.Add(new ResultadoPHash
+                {
+                    RutaJson = rutaJson,
+                    Tipo = tipo,
+                    Empresa = datos.Empresa ?? "",
+                    Numero = datos.Numero ?? "",
+                    PHash = datos.PHash ?? "",
+                    Estado = string.IsNullOrEmpty(datos.PHash) ? "Sin pHash" : "Con pHash"
+                });
+            }
+            return lista;
+        }
+
+        // -----------------------------------------------------------------------
+        // Calcula el pHash de original.jpg de TODAS las facturas y albaranes
+        // guardados y lo escribe en su datos.json. Pensado para ejecutarse en
+        // un hilo de fondo (no toca la interfaz).
+        //
+        // Parámetros:
+        //   recalcularTodas : false = omite los que ya tienen pHash.
+        //   alProgreso      : callback (hechas, total, resultado) tras cada documento.
+        //   ct              : permite detener el proceso entre documentos.
+        // Devuelve el recuento de calculados, omitidos y con error.
+        // -----------------------------------------------------------------------
+        public (int procesadas, int omitidas, int errores) AnalizarPHashDocumentos(
+            bool recalcularTodas, Action<int, int, ResultadoPHash> alProgreso, System.Threading.CancellationToken ct)
+        {
+            var documentos = EnumerarDocumentos();
+
+            int procesadas = 0, omitidas = 0, errores = 0, hechas = 0;
+            foreach (var (rutaJson, tipo) in documentos)
+            {
+                if (ct.IsCancellationRequested) break;
+
+                var res = new ResultadoPHash { Tipo = tipo, RutaJson = rutaJson };
+                try
+                {
+                    var datos = DatosTicket.CargarUnico(rutaJson);
+                    if (datos == null) { res.Estado = "JSON ilegible"; errores++; }
+                    else
+                    {
+                        res.Empresa = datos.Empresa ?? "";
+                        res.Numero = datos.Numero ?? "";
+                        res.PHash = datos.PHash ?? "";
+                        string rutaImagen = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(rutaJson) ?? "", "original.jpg");
+
+                        if (!recalcularTodas && !string.IsNullOrEmpty(datos.PHash)) { res.Estado = "Ya tenía pHash"; omitidas++; }
+                        else if (!System.IO.File.Exists(rutaImagen)) { res.Estado = "Sin original.jpg"; omitidas++; }
+                        else
+                        {
+                            using Mat img = Cv2.ImRead(rutaImagen);
+                            if (img.Empty()) { res.Estado = "Imagen ilegible"; errores++; }
+                            else
+                            {
+                                datos.PHash = CalcularPHash(img);
+                                DatosTicket.GuardarUnico(rutaJson, datos);
+                                res.PHash = datos.PHash;
+                                res.Estado = "✅ Calculado";
+                                procesadas++;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex) { res.Estado = "Error: " + ex.Message; errores++; }
+
+                hechas++;
+                alProgreso(hechas, documentos.Count, res);
+            }
+            return (procesadas, omitidas, errores);
+        }
+
+        // -----------------------------------------------------------------------
         // Busca si una imagen recién cargada/capturada ya coincide (por pHash)
         // con alguna factura guardada previamente.
         // (Sobrecarga sencilla: mantiene la firma original; descarta el log.)
@@ -875,7 +970,9 @@ namespace FACTicket_Scanner
             string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
             string hashNuevo = CalcularPHash(imagenNueva);
 
+            // Facturas + albaranes: una imagen repetida se detecta aunque cambie de tipo.
             var existentes = CargarTodasLasFacturas(carpetaTickets);
+            existentes.AddRange(CargarTodasLasFacturas(CarpetaAlbaranes()));
 
             // Log: datos de la imagen nueva y estadísticas generales
             log = new LogComparacionDuplicado
@@ -966,5 +1063,16 @@ namespace FACTicket_Scanner
             }
             catch { }
         }
+    }
+
+    // Resultado de analizar un documento durante AnalizarPHashDocumentos.
+    public sealed class ResultadoPHash
+    {
+        public string RutaJson { get; set; } = ""; // datos.json del documento (identifica la fila)
+        public string Tipo { get; set; } = "";     // "Factura" o "Albarán"
+        public string Empresa { get; set; } = "";
+        public string Numero { get; set; } = "";
+        public string PHash { get; set; } = "";    // valor guardado (vacío si no tiene)
+        public string Estado { get; set; } = "";   // texto mostrado en la ventana
     }
 }

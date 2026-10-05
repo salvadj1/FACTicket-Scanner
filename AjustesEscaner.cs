@@ -31,6 +31,12 @@ namespace FACTicket_Scanner
         // --- Índice USB recordado ---
         public int UltimoIndiceCamaraUsb { get; set; } = 0;
 
+        // --- Reglas de verificación de duplicados (ver ReglasDuplicados) ---
+        public bool DupNumero { get; set; } = true;
+        public bool DupFecha { get; set; } = true;
+        public bool DupTotal { get; set; } = true;
+        public bool DupEmpresa { get; set; } = false;
+
         // --- Valores de referencia del pipeline (YA NO se cargan por foto) ---
         public int BlockSize { get; set; } = 15;
         public int C { get; set; } = 8;

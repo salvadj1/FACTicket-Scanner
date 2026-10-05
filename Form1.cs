@@ -66,6 +66,7 @@ namespace FACTicket_Scanner
         private int segundosAutoGuardarLote;
 
         private Label lblEstado = null!;
+        private Label separadorInferior = null!;   // línea bajo panelGuardar (se reubica con su alto)
 
         private static void Log(string mensaje)
         {
@@ -468,7 +469,7 @@ namespace FACTicket_Scanner
             });
 
             // Panel de Guardar: fila Rotar/Repetir/Guardar + fila de checkboxes
-            panelGuardar = new PanelGuardarFactura { Left = 0, Top = 12, Width = wP, Height = 84 };
+            panelGuardar = new PanelGuardarFactura { Left = 0, Top = 12, Width = wP };
             panelGuardar.btnRotar.Click += (s, e) => { CancelarAutoGuardadoLote(); rotacionActual = (rotacionActual + 90) % 360; ultimaRotacion = rotacionActual; Reprocesar(); };
             panelGuardar.btnRepetir.Click += BtnRepetir_Click;
             panelGuardar.btnGuardar.Click += BtnGuardar_Click;
@@ -484,8 +485,28 @@ namespace FACTicket_Scanner
             panelGuardar.chkGuardarPdf.CheckedChanged += (s, e) => CancelarAutoGuardadoLote();
             panelGuardar.chkExtraerGemini.CheckedChanged += (s, e) => CancelarAutoGuardadoLote();
 
+            // Reglas de verificación de duplicados: se cargan de ajustes.json y se
+            // guardan al cambiarlas.
+            panelGuardar.AplicarReglasDuplicados(new ReglasDuplicados
+            {
+                Numero = ajustes.DupNumero,
+                Fecha = ajustes.DupFecha,
+                Total = ajustes.DupTotal,
+                Empresa = ajustes.DupEmpresa
+            });
+            panelGuardar.ReglasCambiadas += (s, e) =>
+            {
+                CancelarAutoGuardadoLote();
+                var r = panelGuardar.ObtenerReglasDuplicados();
+                ajustes.DupNumero = r.Numero;
+                ajustes.DupFecha = r.Fecha;
+                ajustes.DupTotal = r.Total;
+                ajustes.DupEmpresa = r.Empresa;
+                album.GuardarAjustes(ajustes);
+            };
+
             // Separador
-            panelBotones.Controls.Add(new Label
+            separadorInferior = new Label
             {
                 Left = 0,
                 Top = 104,
@@ -493,7 +514,8 @@ namespace FACTicket_Scanner
                 Height = 1,
                 BorderStyle = BorderStyle.FixedSingle,
                 BackColor = System.Drawing.Color.Silver
-            });
+            };
+            panelBotones.Controls.Add(separadorInferior);
 
             // Fila: [lblEstado] [btnCapturar]
             lblEstado = new Label
@@ -526,7 +548,21 @@ namespace FACTicket_Scanner
             btnCapturar.Click += BtnCapturar_Click;
             panelBotones.Controls.Add(btnCapturar);
 
-            // Ajustar altura del panelBotones según contenido
+            // Ajustar posiciones y altura del panelBotones según contenido
+            ReubicarPanelBotones();
+        }
+
+        // -----------------------------------------------------------------------
+        // Recoloca separador, estado y botón "Tomar foto" bajo panelGuardar y
+        // ajusta el alto de panelBotones según el alto de panelGuardar.
+        // -----------------------------------------------------------------------
+        private void ReubicarPanelBotones()
+        {
+            if (panelGuardar == null || separadorInferior == null || lblEstado == null || btnCapturar == null) return;
+            int y = panelGuardar.Bottom + 8;
+            separadorInferior.Top = y;
+            lblEstado.Top = y + 8;
+            btnCapturar.Top = y + 4;
             panelBotones.Height = btnCapturar.Bottom + 8;
         }
 
@@ -840,7 +876,8 @@ namespace FACTicket_Scanner
                     guardadoEnCurso = false;
                     if (perteneceALote) CargarSiguienteDeCola();
                 },
-                MostrarRevisionEmbebida);
+                MostrarRevisionEmbebida,
+                reglasDuplicados: panelGuardar.ObtenerReglasDuplicados());
         }
         /*private async void BtnGuardar_Click(object? sender, EventArgs e)
         {
@@ -1846,8 +1883,8 @@ namespace FACTicket_Scanner
 
         private void analizarPhashDeTodasLasFacturasToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            lblEstado.Text = "Iniciando escaneo de pHash...";
-            album.EscanearPHashFacturas(msg => lblEstado.Text = msg);
+            using var form = new AnalizarPHashForm(album);
+            form.ShowDialog(this);
         }
         private void exportarToolStripMenuItem_Click(object sender, EventArgs e)
         {

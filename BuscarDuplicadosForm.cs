@@ -15,6 +15,7 @@ namespace FACTicket_Scanner
     public class BuscarDuplicadosForm : Form
     {
         private readonly string _carpetaTickets;
+        private readonly string _carpetaAlbaranes;
 
         private CheckBox chkFecha = new() { Text = "Coincidir fecha", Checked = true, AutoSize = true };
         private CheckBox chkImporte = new() { Text = "Coincidir importe", Checked = true, AutoSize = true };
@@ -43,11 +44,12 @@ namespace FACTicket_Scanner
 
         private readonly List<(DatosTicket ticket, string rutaJson)> _todasLasFacturas = new();
 
-        public BuscarDuplicadosForm(string? carpetaTickets = null)
+        public BuscarDuplicadosForm(string? carpetaTickets = null, string? carpetaAlbaranes = null)
         {
             _carpetaTickets = carpetaTickets ?? Path.Combine(AppContext.BaseDirectory, "Facturas");
+            _carpetaAlbaranes = carpetaAlbaranes ?? Path.Combine(AppContext.BaseDirectory, "Albaranes");
 
-            Text = "Buscar facturas duplicadas";
+            Text = "Buscar facturas y albaranes duplicados";
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true; MinimizeBox = false; ShowInTaskbar = false;
             StartPosition = FormStartPosition.CenterParent;
@@ -128,6 +130,7 @@ namespace FACTicket_Scanner
             grid.Columns.Add("Numero", "Nº Factura");
             grid.Columns.Add("Total", "Total");
             grid.Columns.Add("Guardado", "Guardada el");
+            grid.Columns.Add("Tipo", "Tipo");
 
             var colVer = new DataGridViewButtonColumn { Name = "Ver", HeaderText = "", Text = "👁 Ver", UseColumnTextForButtonValue = true, Width = 70 };
             var colEditar = new DataGridViewButtonColumn { Name = "Editar", HeaderText = "", Text = "✏ Editar", UseColumnTextForButtonValue = true, Width = 80 };
@@ -149,20 +152,28 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
-        // Escanea todas las facturas en disco (igual criterio que ExportarForm)
+        // Escanea todas las facturas y albaranes en disco (igual criterio que
+        // ExportarForm, más la raíz de albaranes).
         // -----------------------------------------------------------------------
         private void CargarFacturasDesdeDisco()
         {
             _todasLasFacturas.Clear();
-            if (!Directory.Exists(_carpetaTickets)) return;
 
-            foreach (var rutaJson in Directory.GetFiles(_carpetaTickets, "datos.json", SearchOption.AllDirectories))
+            foreach (string raiz in new[] { _carpetaTickets, _carpetaAlbaranes })
             {
-                var t = DatosTicket.CargarUnico(rutaJson);
-                if (t == null) continue;
-                _todasLasFacturas.Add((t, rutaJson));
+                if (!Directory.Exists(raiz)) continue;
+                foreach (var rutaJson in Directory.GetFiles(raiz, "datos.json", SearchOption.AllDirectories))
+                {
+                    var t = DatosTicket.CargarUnico(rutaJson);
+                    if (t == null) continue;
+                    _todasLasFacturas.Add((t, rutaJson));
+                }
             }
         }
+
+        // True si el datos.json pertenece a la raíz de albaranes.
+        private bool EsAlbaran(string rutaJson) =>
+            rutaJson.StartsWith(_carpetaAlbaranes, StringComparison.OrdinalIgnoreCase);
 
         private void BtnBuscar_Click(object? sender, EventArgs e)
         {
@@ -176,7 +187,8 @@ namespace FACTicket_Scanner
 
             string Clave((DatosTicket ticket, string rutaJson) x)
             {
-                string k = "";
+                // Facturas y albaranes se agrupan por separado: nunca se mezclan.
+                string k = EsAlbaran(x.rutaJson) ? "|A" : "|F";
                 if (chkFecha.Checked) k += "|F:" + (x.ticket.Fecha ?? "").Trim().ToLowerInvariant();
                 if (chkImporte.Checked) k += "|T:" + (x.ticket.Total ?? "").Trim().ToLowerInvariant();
                 if (chkEmpresa.Checked) k += "|E:" + (x.ticket.Empresa ?? "").Trim().ToLowerInvariant();
@@ -204,14 +216,15 @@ namespace FACTicket_Scanner
                         item.ticket.Fecha,
                         string.IsNullOrWhiteSpace(item.ticket.Numero) ? "(sin número)" : item.ticket.Numero,
                         item.ticket.Total,
-                        item.ticket.FechaGuardado);
+                        item.ticket.FechaGuardado,
+                        EsAlbaran(item.rutaJson) ? "Albarán" : "Factura");
                 }
             }
 
             grid.Tag = filas;
             lblEstado.Text = grupos.Count == 0
-                ? "No se han encontrado facturas duplicadas con los criterios seleccionados."
-                : $"{grupos.Count} grupo(s) de posibles duplicados – {filas.Count} factura(s) en total.";
+                ? "No se han encontrado duplicados (facturas ni albaranes) con los criterios seleccionados."
+                : $"{grupos.Count} grupo(s) de posibles duplicados – {filas.Count} documento(s) en total.";
         }
 
         private void Grid_CellContentClick(object? sender, DataGridViewCellEventArgs e)

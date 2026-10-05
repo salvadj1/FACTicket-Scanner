@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace FACTicket_Scanner
@@ -21,19 +22,45 @@ namespace FACTicket_Scanner
         public CheckBox chkGuardarPdf = null!;
         public CheckBox chkExtraerGemini = null!;
 
+        // Reglas de verificación de duplicados (siempre visibles, independientes de Gemini)
+        public CheckBox chkRegNumero = null!;
+        public CheckBox chkRegFecha = null!;
+        public CheckBox chkRegTotal = null!;
+        public CheckBox chkRegEmpresa = null!;
+        private Label lblTituloArchivos = null!;
+        private Label lblTituloReglas = null!;
+
+        // Se lanza al cambiar alguna regla de duplicados (ya validada).
+        public event EventHandler? ReglasCambiadas;
+
+        // Alto fijo del panel: fila de botones + archivos a guardar + reglas de duplicados.
+        private const int ALTURA_PANEL = 126;
+
         private bool _construido = false;
+        private int _anchoConstruido = -1;
+        private bool _ajustandoReglas = false;
+        private bool _regNumero = true, _regFecha = true, _regTotal = true, _regEmpresa = false;
+        private readonly ToolTip _tip = new ToolTip();
 
         public PanelGuardarFactura()
         {
-            Height = 84;
+            Height = ALTURA_PANEL;
             HandleCreated += (s, e) => ConstruirUi();
-            SizeChanged += (s, e) => { if (_construido) ConstruirUi(); };
+            SizeChanged += (s, e) => { if (_construido && Width != _anchoConstruido) ConstruirUi(); };
             CreateControl();
         }
 
         private void ConstruirUi()
         {
             _construido = true;
+            _anchoConstruido = Width;
+
+            // Conserva el estado de los checkboxes si el panel se reconstruye
+            bool estOriginal = chkGuardarOriginal?.Checked ?? true;
+            bool estJpg = chkGuardarJpg?.Checked ?? true;
+            bool estPdf = chkGuardarPdf?.Checked ?? true;
+            bool estGemini = chkExtraerGemini?.Checked ?? true;
+
             Controls.Clear();
             int wTotal = Width - 8;
             if (wTotal < 200) wTotal = 200;
@@ -121,16 +148,88 @@ namespace FACTicket_Scanner
             Controls.Add(lblProgresoLote);
             Controls.Add(btnSalirLote);
 
-            // Fila: 4 checkboxes en una sola línea
+            // Fila 1: título + checkboxes de archivos a guardar
+            var fuenteTitulo = new System.Drawing.Font(Font.FontFamily, 8, System.Drawing.FontStyle.Bold);
+            lblTituloArchivos = new Label { Left = 0, Top = 44, Width = wTotal, Height = 16, Text = "Archivos a guardar", Font = fuenteTitulo, ForeColor = System.Drawing.Color.DimGray };
             int wChk = (wTotal - 24) / 4;
-            chkGuardarOriginal = new CheckBox { Left = 0, Top = 50, Width = wChk, Height = 20, Text = "Original", Checked = true };
-            chkGuardarJpg = new CheckBox { Left = wChk + 8, Top = 50, Width = wChk, Height = 20, Text = "Jpg procesado", Checked = true };
-            chkGuardarPdf = new CheckBox { Left = (wChk + 8) * 2, Top = 50, Width = wChk, Height = 20, Text = "Pdf procesado", Checked = true };
-            chkExtraerGemini = new CheckBox { Left = (wChk + 8) * 3, Top = 50, Width = wChk, Height = 20, Text = "Datos (Gemini)", Checked = true };
+            chkGuardarOriginal = new CheckBox { Left = 0, Top = 60, Width = wChk, Height = 20, Text = "Original", Checked = estOriginal };
+            chkGuardarJpg = new CheckBox { Left = wChk + 8, Top = 60, Width = wChk, Height = 20, Text = "Jpg procesado", Checked = estJpg };
+            chkGuardarPdf = new CheckBox { Left = (wChk + 8) * 2, Top = 60, Width = wChk, Height = 20, Text = "Pdf procesado", Checked = estPdf };
+            chkExtraerGemini = new CheckBox { Left = (wChk + 8) * 3, Top = 60, Width = wChk, Height = 20, Text = "Datos (Gemini)", Checked = estGemini };
+
+            // Fila 2: título + reglas de verificación de duplicados
+            lblTituloReglas = new Label { Left = 0, Top = 86, Width = wTotal, Height = 16, Text = "Reglas Verificación Duplicados", Font = fuenteTitulo, ForeColor = System.Drawing.Color.DimGray };
+            chkRegNumero = new CheckBox { Left = 0, Top = 102, Width = wChk, Height = 20, Text = "Nº factura", Checked = _regNumero };
+            chkRegFecha = new CheckBox { Left = wChk + 8, Top = 102, Width = wChk, Height = 20, Text = "Fecha", Checked = _regFecha };
+            chkRegTotal = new CheckBox { Left = (wChk + 8) * 2, Top = 102, Width = wChk, Height = 20, Text = "Total", Checked = _regTotal };
+            chkRegEmpresa = new CheckBox { Left = (wChk + 8) * 3, Top = 102, Width = wChk, Height = 20, Text = "Nombre empresa", Checked = _regEmpresa };
+            foreach (var c in new[] { chkRegNumero, chkRegFecha, chkRegTotal, chkRegEmpresa })
+                c.CheckedChanged += AlCambiarRegla;
+            _tip.SetToolTip(lblTituloReglas, "Es duplicado si coinciden TODAS las reglas marcadas (mínimo 2).");
+
+            Controls.Add(lblTituloArchivos);
             Controls.Add(chkGuardarOriginal);
             Controls.Add(chkGuardarJpg);
             Controls.Add(chkGuardarPdf);
             Controls.Add(chkExtraerGemini);
+            Controls.Add(lblTituloReglas);
+            Controls.Add(chkRegNumero);
+            Controls.Add(chkRegFecha);
+            Controls.Add(chkRegTotal);
+            Controls.Add(chkRegEmpresa);
+        }
+
+        // -------------------------------------------------------------------
+        // Valida y registra un cambio en las reglas. Exige un mínimo de
+        // ReglasDuplicados.MinimoReglas marcadas: si el cambio deja menos,
+        // se revierte.
+        // -------------------------------------------------------------------
+        private void AlCambiarRegla(object? sender, EventArgs e)
+        {
+            if (_ajustandoReglas) return;
+
+            int activas = new[] { chkRegNumero.Checked, chkRegFecha.Checked, chkRegTotal.Checked, chkRegEmpresa.Checked }.Count(b => b);
+            if (activas < ReglasDuplicados.MinimoReglas)
+            {
+                _ajustandoReglas = true;
+                ((CheckBox)sender!).Checked = true;
+                _ajustandoReglas = false;
+                return;
+            }
+
+            _regNumero = chkRegNumero.Checked;
+            _regFecha = chkRegFecha.Checked;
+            _regTotal = chkRegTotal.Checked;
+            _regEmpresa = chkRegEmpresa.Checked;
+            ReglasCambiadas?.Invoke(this, EventArgs.Empty);
+        }
+
+        // Devuelve las reglas de duplicados actualmente seleccionadas.
+        public ReglasDuplicados ObtenerReglasDuplicados() => new ReglasDuplicados
+        {
+            Numero = _regNumero,
+            Fecha = _regFecha,
+            Total = _regTotal,
+            Empresa = _regEmpresa
+        };
+
+        // Carga reglas (p. ej. desde ajustes.json) sin lanzar ReglasCambiadas.
+        // Se ignoran si tienen menos del mínimo de reglas activas.
+        public void AplicarReglasDuplicados(ReglasDuplicados reglas)
+        {
+            if (reglas.CantidadActivas < ReglasDuplicados.MinimoReglas) return;
+            _regNumero = reglas.Numero;
+            _regFecha = reglas.Fecha;
+            _regTotal = reglas.Total;
+            _regEmpresa = reglas.Empresa;
+
+            if (!_construido || chkRegNumero == null) return;
+            _ajustandoReglas = true;
+            chkRegNumero.Checked = _regNumero;
+            chkRegFecha.Checked = _regFecha;
+            chkRegTotal.Checked = _regTotal;
+            chkRegEmpresa.Checked = _regEmpresa;
+            _ajustandoReglas = false;
         }
     }
 }
