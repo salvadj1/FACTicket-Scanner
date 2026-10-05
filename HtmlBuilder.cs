@@ -183,6 +183,17 @@ namespace FACTicket_Scanner
 
       <!-- Filtros propios del listado de artículos -->
       <div id=""fila-art"">
+        <span class=""ctrl-grupo""><label>Vista</label>
+          <button class=""chip on"" id=""btnArtTabla"" onclick=""setArtVista('tabla')"" title=""Tabla por empresa con comparador integrado"">📋 Tabla</button>
+          <button class=""chip"" id=""btnArtMatriz"" onclick=""setArtVista('matriz')"" title=""Matriz artículo × empresa"">🧮 Matriz</button></span>
+        <button class=""chip btn-fus"" onclick=""abrirFus('sug')"" title=""Unir artículos que las empresas escriben distinto"">🔗 Fusiones<span id=""fusBadge""></span></button>
+        <span class=""ctrl-grupo""><label>Comparar por</label>
+          <select id=""artModo"" onchange=""filtrar()"" title=""Valor que se compara entre empresas"">
+            <option value=""ultimo"">Último precio</option>
+            <option value=""media"">Precio medio</option>
+            <option value=""min"">Mínimo histórico</option>
+            <option value=""primero"">Primer precio</option>
+          </select></span>
         <span class=""ctrl-grupo""><label>Variación</label>
           <select id=""artVar"" onchange=""filtrar()"">
             <option value="""">Todas</option>
@@ -204,6 +215,7 @@ namespace FACTicket_Scanner
             <option value=""alfa"">Nombre A-Z</option>
             <option value=""sube"">Mayor subida</option>
             <option value=""baja"">Mayor bajada</option>
+            <option value=""ahorro"">Mayor ahorro potencial</option>
             <option value=""regs"">Más registros</option>
             <option value=""gasto"">Mayor gasto</option>
             <option value=""reciente"">Último registro</option>
@@ -216,6 +228,35 @@ namespace FACTicket_Scanner
       <div id=""contenido""></div>
     </div>
   </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     DETALLE DE ARTÍCULO — gráfica comparada, histórico y fórmulas
+═══════════════════════════════════════════════════════════ -->
+<div id=""modal-art"" onclick=""if(event.target===this)cerrarArt()"">
+  <div id=""modal-art-in"">
+    <div id=""modal-art-head"">
+      <button onclick=""navArt(-1)"" title=""Anterior (←)"">◀</button>
+      <h3 id=""artT""></h3>
+      <button onclick=""navArt(1)"" title=""Siguiente (→)"">▶</button>
+      <button onclick=""cerrarArt()"" title=""Cerrar (Esc)"">✕</button>
+    </div>
+    <div id=""artB""></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     FUSIÓN DE NOMBRES DE ARTÍCULOS — sugerencias, manual y activas
+═══════════════════════════════════════════════════════════ -->
+<div id=""modal-fus"" onclick=""if(event.target===this)cerrarFus()"">
+  <div id=""modal-fus-in"">
+    <div id=""modal-fus-head"">
+      <h3>🔗 Fusionar artículos con nombres distintos</h3>
+      <button onclick=""cerrarFus()"" title=""Cerrar (Esc)"">✕</button>
+    </div>
+    <div id=""fusT""></div>
+    <div id=""fusB""></div>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -548,6 +589,107 @@ tr.art-hist td{background:#fafbfc;white-space:normal;}
   #layout{display:block;height:auto;overflow:visible;}
   #panel-der,#listado{overflow:visible !important;height:auto !important;}
 }
+
+/* ── Artículos: KPIs clicables, galería, matriz y detalle ── */
+.art-kpi{background:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 1px 4px rgba(0,0,0,.06);border:2px solid transparent;}
+.art-kpi.click{cursor:pointer;transition:all .15s;}
+.art-kpi.click:hover{border-color:var(--azul);transform:translateY(-2px);}
+.art-kpi.on{border-color:var(--azul);background:var(--azul-s);}
+.art-kpi b{font-size:1.05em;}
+.art-kpi small{display:block;color:var(--gris);}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:.78em;font-weight:700;}
+.pill.sube{background:var(--rojo-s);color:var(--rojo);}
+.pill.baja,.pill.mej{background:var(--verde-s);color:var(--verde);}
+.pill.igual{background:#f1f3f4;color:var(--gris);}
+.sw{width:11px;height:11px;border-radius:3px;display:inline-block;}
+.lk{color:var(--azul);cursor:pointer;text-decoration:underline dotted;}
+.lk:hover{text-decoration:underline;}
+.heatb{display:inline-block;height:6px;border-radius:3px;vertical-align:middle;margin-left:5px;}
+.chipv{cursor:pointer;padding:2px 9px;border-radius:12px;border:1px solid transparent;font-weight:700;}
+.chipv.sube{color:var(--rojo);}.chipv.baja{color:var(--verde);}
+.chipv:hover{border-color:currentColor;background:#fff;}
+.empresa-cab .suma{display:flex;gap:6px;align-items:center;}
+tr.art-fila.sel td{background:var(--azul-s);}
+table.arts th.clk{cursor:pointer;}
+table.arts th.clk:hover{background:var(--azul-s);color:var(--azul);}
+table.arts th.sel{background:var(--azul);color:#fff;}
+td.cel{text-align:center;min-width:128px;cursor:pointer;}
+td.cel:hover{outline:2px solid var(--azul);outline-offset:-2px;}
+td.cel.mej{background:var(--verde-s);}
+td.cel.mej .p{color:var(--verde);}
+td.cel.sel{outline:2px solid var(--azul);outline-offset:-2px;}
+td.cel .p{font-weight:700;}
+td.cel .d{font-size:.78em;}
+td.cel.vacio{color:#bbb;cursor:default;}
+td.cel.vacio:hover{outline:none;}
+table.arts tfoot td{font-weight:700;background:#f5f7fa;}
+.art-ahorro{background:linear-gradient(90deg,var(--verde-s),#fff);border:1px solid #cfe8d6;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
+.art-ahorro b{color:var(--verde);font-size:1.1em;}
+.art-nota{color:var(--gris);font-size:.78em;margin:6px 2px;}
+.art-foco{display:flex;gap:8px;align-items:center;background:var(--azul);color:#fff;border-radius:10px;padding:8px 14px;margin-bottom:10px;flex-wrap:wrap;}
+.art-foco button{border:1px solid #fff8;background:#fff2;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font:inherit;}
+.art-gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:14px;}
+.art-gc{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);padding:10px;cursor:pointer;border:2px solid transparent;transition:all .15s;}
+.art-gc:hover{border-color:var(--azul);transform:translateY(-2px);}
+.art-gc .t{display:flex;justify-content:space-between;gap:6px;align-items:flex-start;}
+.art-gc .t b{font-size:.9em;}
+.art-gc small{color:var(--gris);display:block;font-size:.74em;}
+.art-gc svg{width:100%;height:auto;margin-top:4px;}
+.art-gc .pie{display:flex;justify-content:space-between;font-size:.76em;color:var(--gris);}
+#btnArtTabla.on,#btnArtMatriz.on{background:var(--azul-s);border-color:var(--azul);color:var(--azul);font-weight:600;}
+/* Detalle (diálogo) */
+#modal-art{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;align-items:center;justify-content:center;}
+#modal-art.activo{display:flex;}
+#modal-art-in{background:#fff;border-radius:12px;width:min(980px,96vw);max-height:92vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.35);}
+#modal-art-head{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--borde);position:sticky;top:0;background:#fff;z-index:2;}
+#modal-art-head h3{flex:1;font-size:1.05em;}
+#modal-art-head button{padding:5px 11px;border:1px solid var(--borde);border-radius:6px;background:#f8f9fa;cursor:pointer;font:inherit;}
+#modal-art-head button:hover{background:var(--azul-s);border-color:var(--azul);}
+#artB{padding:14px 16px;}
+.art-dk{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;margin-bottom:10px;}
+.art-leg{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0;}
+.art-leg label{display:flex;gap:5px;align-items:center;font-size:.8em;cursor:pointer;}
+.art-dos{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;}
+@media(max-width:760px){.art-dos{grid-template-columns:1fr;}}
+.art-formula{background:#f8f9fa;border:1px solid var(--borde);border-radius:10px;padding:10px 12px;font-size:.8em;}
+.art-formula code{background:#e8f0fe;color:#174ea6;padding:1px 6px;border-radius:4px;font-family:Consolas,monospace;}
+.art-formula .l{margin:2px 0;font-family:Consolas,monospace;font-size:.95em;white-space:normal;}
+.art-reg{display:grid;grid-template-columns:84px 1fr 50px 80px 76px 76px;gap:6px;font-size:.76em;padding:3px 6px;border-radius:4px;cursor:pointer;}
+.art-reg.h{font-weight:700;color:var(--gris);cursor:default;}
+.art-reg:not(.h):hover{background:var(--azul-s);}
+.art-reglst{max-height:230px;overflow:auto;}
+@media print{#modal-art{display:none !important;}}
+
+/* ── Fusión de nombres de artículos ── */
+.btn-fus{position:relative;}
+#fusBadge{background:var(--rojo);color:#fff;border-radius:10px;font-size:.78em;padding:0 6px;margin-left:5px;display:none;}
+#modal-fus{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:950;align-items:center;justify-content:center;}
+#modal-fus.activo{display:flex;}
+#modal-fus-in{background:#fff;border-radius:12px;width:min(900px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.35);}
+#modal-fus-head{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--borde);}
+#modal-fus-head h3{flex:1;font-size:1.05em;}
+#modal-fus-head button{padding:5px 11px;border:1px solid var(--borde);border-radius:6px;background:#f8f9fa;cursor:pointer;font:inherit;}
+#fusT{display:flex;border-bottom:1px solid var(--borde);}
+#fusT button{flex:1;padding:9px;border:none;background:#f8f9fa;cursor:pointer;font:inherit;font-size:.85em;}
+#fusT button.on{background:#fff;color:var(--azul);font-weight:700;box-shadow:inset 0 -2px 0 var(--azul);}
+#fusB{padding:14px 16px;overflow:auto;}
+.fus-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;font-size:.82em;}
+.fus-tit{font-weight:700;margin:14px 0 6px;font-size:.88em;}
+.fus-vacio{color:var(--gris);font-size:.82em;padding:8px;}
+.fus-fila{border:1px solid var(--borde);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff;}
+.fus-fila.rev{border-color:#f3c9c6;background:#fffafa;}
+.fus-nom{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:start;font-size:.88em;font-weight:600;}
+.fus-flecha{color:var(--gris);font-size:1.2em;align-self:center;}
+.fus-inf{color:var(--gris);font-size:.78em;font-weight:400;}
+.fus-pie{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;}
+.fus-sim{font-size:.78em;color:var(--gris);}
+.chip.fus-si{border-color:var(--verde);color:var(--verde);}
+.chip.fus-si:hover{background:var(--verde-s);}
+.fus-man{display:flex;flex-direction:column;gap:6px;max-width:520px;font-size:.85em;}
+.fus-man input{padding:7px 10px;border:1px solid var(--borde);border-radius:6px;font:inherit;}
+.fus-man label{font-size:.78em;color:var(--gris);margin-top:4px;}
+@media(max-width:700px){.fus-nom{grid-template-columns:1fr;}.fus-flecha{display:none;}}
+@media print{#modal-fus{display:none !important;}}
 ";
 
         private static string Js() => @"
@@ -1362,13 +1504,14 @@ const COLS_EXP=[
 // Devuelve {nombre, cab, filas} con exactamente lo que se ve en pantalla.
 function datosExportacion(){
   if(tipoActual==='articulos'){
-    const arts=articulosFiltrados();
+    const arts=articulosFiltrados(false);
     return {nombre:'articulos',
-      cab:['Empresa','Artículo','Registros','Primer precio','Fecha primero','Último precio','Fecha último','Var. desde 1º %','Var. última compra %','Mín.','Máx.','Media','Cantidad','Gasto'],
-      filas:arts.map(({a,st})=>[a.empresa,a.nombre,st.n,st.primero?st.primero.precio:'',st.primero?st.primero.fechaTxt:'',
+      cab:['Empresa','Artículo','Registros','Primer precio','Fecha primero','Último precio','Fecha último','Var. desde 1º %','Var. última compra %','Mín.','Máx.','Media','Cantidad','Gasto','Mejor precio','Más barato en','Dif. vs mejor %','Ahorro potencial'],
+      filas:arts.map(({a,st,c,f,ahorro})=>[a.empresa,a.nombre,st.n,st.primero?st.primero.precio:'',st.primero?st.primero.fechaTxt:'',
         st.ultimo?st.ultimo.precio:'',st.ultimo?st.ultimo.fechaTxt:'',
         st.varTotal===null?'':Math.round(st.varTotal*10)/10, st.varUltima===null?'':Math.round(st.varUltima*10)/10,
-        st.min,st.max,Math.round(st.media*100)/100,st.cant,Math.round(st.gasto*100)/100])};
+        st.min,st.max,Math.round(st.media*100)/100,st.cant,Math.round(st.gasto*100)/100,
+        c?Math.round(c.mej.v*100)/100:'', c?c.mej.emp:'', f&&f.pct?Math.round(f.pct*10)/10:0, Math.round(ahorro*100)/100])};
   }
   const items=[...listaFiltrada]; ordenarItems(items);
   return {nombre:tipoActual, cab:COLS_EXP.map(c=>c[0]), filas:items.map(t=>COLS_EXP.map(c=>c[1](t)))};
@@ -1408,37 +1551,63 @@ function exportar(fmt){
   else if(fmt==='html') guardarArchivo(base+'.html','<!DOCTYPE html><html lang=""es""><head><meta charset=""UTF-8""><title>'+base+'</title><style>body{font-family:Segoe UI,Arial,sans-serif;padding:16px}table{border-collapse:collapse;font-size:13px}th,td{border:1px solid #ccc;padding:4px 8px}th{background:#f5f7fa}</style></head><body><h2>'+base+' · '+d.filas.length+' filas</h2>'+tablaHtml(d)+'</body></html>','text/html','Informe HTML (*.html)|*.html');
 }
 
-/* ─── Listado de artículos por empresa ─── */
+/* ─── Listado de artículos por empresa (tabla con comparador + matriz) ─── */
+// Estado propio de la pestaña Artículos
+let artVista='tabla';          // 'tabla' | 'matriz'
+let artFoco='';                // '' | 'todos' | 'sube' | 'baja' | 'gasto' | 'ahorro' (KPI pulsado)
+let artSel={clave:null, emp:null};
+let artNav=[], artNavPos=0;    // lista para los botones ◀ ▶ del detalle
+let artOcultas=new Set();      // empresas ocultas en la gráfica comparada
+const COL_ART=['#1a73e8','#e37400','#137333','#8e24aa','#c5221f','#00838f'];
+const encA=encodeURIComponent, decA=decodeURIComponent;
+const escH=s=>(s===null||s===undefined?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/""/g,'&quot;');
+const n2=n=>n.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});
+const clsVar=p=>(p===null||p===undefined||!isFinite(p)||Math.abs(p)<0.05)?'igual':(p>0?'sube':'baja');
+
 // Clave de comparación: minúsculas, sin tildes y sin espacios repetidos.
 function normArt(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
+// Variación porcentual de n respecto a la base b (null si no hay base).
 function pctVar(n,b){ return b>0 ? (n-b)/b*100 : null; }
+// HTML de una variación: +17% en rojo (sube de precio), -17% en verde (baja).
 function fmtVar(p){
   if(p===null||p===undefined||!isFinite(p)) return '<span class=""var igual"">—</span>';
   const r=Math.round(p*10)/10;
   if(Math.abs(r)<0.05) return '<span class=""var igual"">0%</span>';
   return `<span class=""var ${r>0?'sube':'baja'}"">${r>0?'+':'-'}${Math.abs(r).toLocaleString('es-ES',{maximumFractionDigits:1})}%</span>`;
 }
+
 // Índice de TODO el histórico cargado: (empresa + artículo) -> registros ordenados por fecha.
+// La clave pasa por canonArt(): los nombres que el usuario ha FUNDIDO comparten historial.
+// Se guardan las variantes de nombre original y se muestra la más frecuente.
 function construirArticulos(){
-  const mapa=new Map();
+  const mapa=new Map(), nombresRaw={};
   tickets.forEach((t,idx)=>{
     const emp=empresaCarpeta(t);
     (t.items||[]).forEach(it=>{
-      const k=normArt(it.descripcion); if(!k) return;
+      const kRaw=normArt(it.descripcion); if(!kRaw) return;
+      const k=canonArt(kRaw), desc=(it.descripcion||'').trim();
+      nombresRaw[kRaw]=nombresRaw[kRaw]||desc;
       const precio=num(it.precio_unitario), cant=num(it.cantidad);
       const clave=emp+'\u0001'+k;
       let a=mapa.get(clave);
-      if(!a){ a={empresa:emp, clave:k, nombre:(it.descripcion||'').trim(), regs:[]}; mapa.set(clave,a); }
+      if(!a){ a={empresa:emp, clave:k, nombre:desc, variantes:new Map(), regs:[]}; mapa.set(clave,a); }
+      a.variantes.set(desc,(a.variantes.get(desc)||0)+1);
       a.regs.push({doc:t, idx:idx, fecha:fechaCompleta(t.fecha), guardado:(t.fecha_guardado||''), fechaTxt:t.fecha||'—',
         numero:t.numero||'—', cant:cant, precio:precio, subtotal:num(it.subtotal)||precio*cant});
     });
   });
   const fk=r=>r.fecha||r.guardado.slice(0,10)||'';
-  mapa.forEach(a=>a.regs.sort((x,y)=>fk(x).localeCompare(fk(y))||x.guardado.localeCompare(y.guardado)));
+  mapa.forEach(a=>{
+    a.regs.sort((x,y)=>fk(x).localeCompare(fk(y))||x.guardado.localeCompare(y.guardado));
+    let best=0; a.variantes.forEach((n,d)=>{ if(n>best){ best=n; a.nombre=d; } });   // nombre más frecuente
+  });
+  window._artNombres=nombresRaw;
   return mapa;
 }
-// Estadísticas: la variación se mide SIEMPRE contra el primer registro histórico,
-// aunque los filtros de año/trimestre limiten qué registros se muestran.
+// Estadísticas de un artículo en una empresa. La variación se mide SIEMPRE contra
+// el primer registro histórico (aunque los filtros recorten lo que se muestra).
+//   varTotal = (último - primero) / primero * 100
+//   varUltima = (último - anterior) / anterior * 100
 function estadisticasArticulo(a, per){
   const conPrecio=a.regs.filter(r=>r.precio>0), pp=per.filter(r=>r.precio>0);
   const primero=conPrecio[0]||null, ultimo=pp.length?pp[pp.length-1]:null;
@@ -1450,108 +1619,517 @@ function estadisticasArticulo(a, per){
     varUltima:(ultimo&&previo)?pctVar(ultimo.precio,previo.precio):null,
     min:precios.length?Math.min(...precios):0, max:precios.length?Math.max(...precios):0,
     media:precios.length?precios.reduce((s,v)=>s+v,0)/precios.length:0,
-    cant:per.reduce((s,r)=>s+r.cant,0), gasto:per.reduce((s,r)=>s+r.subtotal,0)
+    cant:pp.reduce((s,r)=>s+r.cant,0), gasto:pp.reduce((s,r)=>s+r.subtotal,0)
   };
 }
+// Valor de una serie de registros según ""Comparar por"" (último, media, mínimo, primero).
+function valorModo(regs){
+  const p=regs.filter(r=>r.precio>0).map(r=>r.precio); if(!p.length) return null;
+  const m=$id('artModo').value;
+  return m==='media'?p.reduce((s,v)=>s+v,0)/p.length : m==='min'?Math.min(...p) : m==='primero'?p[0] : p[p.length-1];
+}
+// Comparación del MISMO artículo entre TODAS las empresas:
+//   mejor = menor valor · pct = (precio - mejor) / mejor * 100
+//   ahorro = (precio - mejor) * cantidad comprada
+function cmpArticulo(claveArt){
+  const filas=[];
+  (window._artMapa||new Map()).forEach(o=>{
+    if(o.clave!==claveArt) return;
+    const v=valorModo(o.regs); if(v===null) return;
+    filas.push({emp:o.empresa, v:v, a:o, st:estadisticasArticulo(o,o.regs)});
+  });
+  if(!filas.length) return null;
+  const mej=filas.reduce((a,b)=>a.v<b.v?a:b);
+  filas.forEach(f=>{ f.pct=f.emp===mej.emp?0:pctVar(f.v,mej.v); f.ahorro=(f.v-mej.v)*f.st.cant; f.esMejor=filas.length>1&&f.emp===mej.emp; });
+  return {filas, mej, total:filas.reduce((s,f)=>s+f.ahorro,0), multi:filas.length>1, nombre:filas[0].a.nombre};
+}
+
 // Artículos que cumplen buscador + filtros de documento + filtros propios de la lista.
-function articulosFiltrados(){
+function articulosFiltrados(sinFoco){
   const mapa=construirArticulos(); window._artMapa=mapa;
   const setT=new Set(listaFiltrada);
   const terminos=($id('buscar').value||'').split(',').map(normArt).filter(Boolean);
   const fVar=$id('artVar').value, fPct=parseFloat($id('artPct').value)||0, fMin=parseInt($id('artMin').value,10)||1;
-  const out=[];
+  let out=[];
   mapa.forEach(a=>{
     const per=a.regs.filter(r=>setT.has(r.doc));
     if(!per.length || a.regs.length<fMin) return;
     if(terminos.length && !terminos.some(q=>a.clave.includes(q)||normArt(a.empresa).includes(q))) return;
     const st=estadisticasArticulo(a,per), v=st.varTotal;
+    if(!st.ultimo) return;
     if(fVar==='sube' && !(v!==null&&v>=0.05)) return;
     if(fVar==='baja' && !(v!==null&&v<=-0.05)) return;
     if(fVar==='igual' && !(v!==null&&Math.abs(v)<0.05)) return;
     if(fPct>0 && !(v!==null&&Math.abs(v)>=fPct)) return;
-    out.push({a,st,per});
+    const c=cmpArticulo(a.clave), f=c?c.filas.find(z=>z.emp===a.empresa):null;
+    out.push({a,st,per,c,f,ahorro:f?Math.max(f.ahorro,0):0});
   });
+  if(!sinFoco){
+    if(artFoco==='sube') out=out.filter(x=>x.st.varTotal!==null&&x.st.varTotal>=0.05);
+    else if(artFoco==='baja') out=out.filter(x=>x.st.varTotal!==null&&x.st.varTotal<=-0.05);
+    else if(artFoco==='ahorro') out=out.filter(x=>x.ahorro>0.004);
+  }
   const ult=x=>x.st.ultimo?(x.st.ultimo.fecha||x.st.ultimo.guardado.slice(0,10)):'';
   const cmp={
-    alfa:(x,y)=>x.a.nombre.localeCompare(y.a.nombre,'es'),
+    alfa:(x,y)=>x.a.nombre.localeCompare(y.a.nombre,'es')||x.a.empresa.localeCompare(y.a.empresa),
     sube:(x,y)=>(y.st.varTotal===null?-1e9:y.st.varTotal)-(x.st.varTotal===null?-1e9:x.st.varTotal),
     baja:(x,y)=>(x.st.varTotal===null?1e9:x.st.varTotal)-(y.st.varTotal===null?1e9:y.st.varTotal),
     regs:(x,y)=>y.a.regs.length-x.a.regs.length,
     gasto:(x,y)=>y.st.gasto-x.st.gasto,
+    ahorro:(x,y)=>y.ahorro-x.ahorro,
     reciente:(x,y)=>ult(y).localeCompare(ult(x))
   }[$id('artOrden').value]||((x,y)=>0);
   return out.sort(cmp);
 }
-function renderArticulos(lista,c){
-  const arts=articulosFiltrados();
-  $id('contador').textContent=arts.length+' artículo(s)';
-  if(!arts.length){ c.innerHTML='<div id=""vacio"">No se encontraron artículos con estos filtros.</div>'; return; }
-  window._artData={};
-  const suben=arts.filter(x=>x.st.varTotal!==null&&x.st.varTotal>=0.05), bajan=arts.filter(x=>x.st.varTotal!==null&&x.st.varTotal<=-0.05);
-  const mayorSube=[...suben].sort((x,y)=>y.st.varTotal-x.st.varTotal)[0], mayorBaja=[...bajan].sort((x,y)=>x.st.varTotal-y.st.varTotal)[0];
-  const kpi=(l,v)=>`<div class=""art-kpi""><span>${l}</span><b>${v}</b></div>`;
-  let html='<div class=""art-kpis"">'
-    +kpi('Artículos',arts.length)+kpi('Han subido ▲',suben.length)+kpi('Han bajado ▼',bajan.length)
-    +kpi('Mayor subida',mayorSube?mayorSube.a.nombre+' <small>('+mayorSube.a.empresa+')</small> '+fmtVar(mayorSube.st.varTotal):'—')
-    +kpi('Mayor bajada',mayorBaja?mayorBaja.a.nombre+' <small>('+mayorBaja.a.empresa+')</small> '+fmtVar(mayorBaja.st.varTotal):'—')
-    +kpi('Gasto en artículos',eur(arts.reduce((s,x)=>s+x.st.gasto,0)))+'</div>';
-  const grupos={};
-  arts.forEach(x=>(grupos[x.a.empresa]=grupos[x.a.empresa]||[]).push(x));
-  let n=0;
-  html+=Object.keys(grupos).sort().map(emp=>{
-    const g=grupos[emp];
-    const filas=g.map(x=>{
-      const uid='art'+(n++); window._artData[uid]=x; const st=x.st;
-      return `<tr class=""art-fila"" onclick=""toggleArticulo('${uid}')"">
-        <td>${x.a.nombre}</td><td class=""n"">${st.n}</td>
-        <td class=""n"">${st.primero?eur(st.primero.precio):'—'}</td>
-        <td class=""n""><b>${st.ultimo?eur(st.ultimo.precio):'—'}</b>${fmtVar(st.varTotal)}</td>
-        <td class=""n"">${fmtVar(st.varUltima)}</td>
-        <td class=""n"">${st.min?eur(st.min):'—'}</td><td class=""n"">${st.max?eur(st.max):'—'}</td>
-        <td class=""n"">${st.media?eur(st.media):'—'}</td><td class=""n"">${eur(st.gasto)}</td></tr>
-        <tr class=""art-hist"" id=""h-${uid}"" style=""display:none""><td colspan=""9""></td></tr>`;
-    }).join('');
-    return `<div class=""empresa-grupo""><div class=""empresa-cab"">🏢 ${emp}<span class=""count"">${g.length}</span>
-      <span class=""suma"">${eur(g.reduce((s,x)=>s+x.st.gasto,0))}</span></div>
-      <div class=""wrapx""><table class=""arts""><thead><tr><th>Artículo</th><th class=""n"">Regs.</th><th class=""n"">Primer precio</th>
-      <th class=""n"" title=""Último precio y variación desde el primer registro"">Último precio (var. desde 1º)</th><th class=""n"">Var. última compra</th>
-      <th class=""n"">Mín.</th><th class=""n"">Máx.</th><th class=""n"">Media</th><th class=""n"">Gasto</th></tr></thead><tbody>${filas}</tbody></table></div></div>`;
-  }).join('');
-  c.innerHTML=html;
+
+/* ─── Gráficos SVG (sin dependencias) ─── */
+function sparkSvg(vals,w,h){
+  w=w||90; h=h||26;
+  if(vals.length<2) return `<svg width=""${w}"" height=""${h}""><circle cx=""${w/2}"" cy=""${h/2}"" r=""3"" fill=""#9aa0a6""/></svg>`;
+  const mn=Math.min(...vals), mx=Math.max(...vals), r=(mx-mn)||1;
+  const pts=vals.map((v,i)=>[2+i/(vals.length-1)*(w-4), h-3-(v-mn)/r*(h-6)]);
+  const col=vals[vals.length-1]>vals[0]*1.0005?'#c5221f':vals[vals.length-1]<vals[0]*0.9995?'#137333':'#5f6368';
+  const l=pts[pts.length-1];
+  return `<svg width=""${w}"" height=""${h}""><polyline fill=""none"" stroke=""${col}"" stroke-width=""1.8"" points=""${pts.map(p=>p.join(',')).join(' ')}""/><circle cx=""${l[0]}"" cy=""${l[1]}"" r=""2.6"" fill=""${col}""/></svg>`;
 }
-// Despliega el histórico del artículo: gráfico, registros con variación y comparación con otras empresas.
-function toggleArticulo(uid){
-  const fila=$id('h-'+uid), visible=fila.style.display!=='none';
-  fila.style.display=visible?'none':'';
-  if(visible || fila.dataset.render) return;
-  fila.dataset.render='1';
-  const x=window._artData[uid], a=x.a, regs=a.regs.filter(r=>r.precio>0);
-  const primero=regs[0];
-  const lineas=regs.map((r,i)=>{
-    const prev=i>0?regs[i-1].precio:null;
-    return `<div class=""art-reg"" onclick=""cerrarModal();setTimeout(()=>abrirModal(${r.idx}),50)"">
-      <span>${r.fechaTxt}</span><span>Nº ${r.numero}</span><span>${r.cant}</span><span>${eur(r.precio)}</span>
-      <span>${prev===null?'—':fmtVar(pctVar(r.precio,prev))}</span><span>${i===0?'—':fmtVar(pctVar(r.precio,primero.precio))}</span></div>`;
-  }).join('');
-  // Mismo artículo en OTRAS empresas: último precio y diferencia respecto a esta
-  const otras=[];
-  (window._artMapa||new Map()).forEach(o=>{
-    if(o.clave!==a.clave || o.empresa===a.empresa) return;
-    const rp=o.regs.filter(r=>r.precio>0); if(!rp.length) return;
-    const u=rp[rp.length-1];
-    otras.push(`<div>${o.empresa}: <b>${eur(u.precio)}</b> ${x.st.ultimo?fmtVar(pctVar(u.precio,x.st.ultimo.precio)):''} <small>(${u.fechaTxt})</small></div>`);
+// Mini-gráfica de la galería: área + etiquetas del primer y último precio.
+function miniSvg(regs){
+  const w=260, h=86, v=regs.filter(r=>r.precio>0).map(r=>r.precio);
+  if(v.length<2) return `<svg viewBox=""0 0 ${w} ${h}""><text x=""8"" y=""40"" font-size=""11"" fill=""#80868b"">Un solo registro</text></svg>`;
+  const mn=Math.min(...v)*0.97, mx=Math.max(...v)*1.03, r=(mx-mn)||1, L=8, R=8, T=14, B=8;
+  const X=i=>L+i/(v.length-1)*(w-L-R), Y=p=>h-B-(p-mn)/r*(h-T-B);
+  const col=v[v.length-1]>v[0]*1.0005?'#c5221f':v[v.length-1]<v[0]*0.9995?'#137333':'#5f6368';
+  const pts=v.map((p,i)=>X(i)+','+Y(p)).join(' ');
+  return `<svg viewBox=""0 0 ${w} ${h}""><polygon points=""${X(0)},${h-B} ${pts} ${X(v.length-1)},${h-B}"" fill=""${col}"" opacity="".12""/>
+    <polyline fill=""none"" stroke=""${col}"" stroke-width=""2"" points=""${pts}""/>
+    <circle cx=""${X(0)}"" cy=""${Y(v[0])}"" r=""3"" fill=""#80868b""/><circle cx=""${X(v.length-1)}"" cy=""${Y(v[v.length-1])}"" r=""3.4"" fill=""${col}""/>
+    <text x=""${X(0)}"" y=""${Y(v[0])-6}"" font-size=""10"" fill=""#5f6368"">${n2(v[0])}</text>
+    <text x=""${X(v.length-1)}"" y=""${Y(v[v.length-1])-6}"" text-anchor=""end"" font-size=""10"" font-weight=""700"" fill=""${col}"">${n2(v[v.length-1])}</text></svg>`;
+}
+// Gráfica grande multi-serie. series=[{name,col,pts:[{t,v,f}]}]; hl = empresa resaltada.
+function chartSvg(series,hl,w,h){
+  w=w||640; h=h||240;
+  const all=series.flatMap(s=>s.pts); if(!all.length) return '';
+  const ts=all.map(p=>p.t), mnT=Math.min(...ts), mxT=Math.max(...ts)||mnT+1;
+  const pr=all.map(p=>p.v), mnP=Math.min(...pr)*0.95, mxP=Math.max(...pr)*1.05, rp=(mxP-mnP)||1, rt=(mxT-mnT)||1;
+  const L=46, B=24, T=10, R=12, X=t=>L+(t-mnT)/rt*(w-L-R), Y=v=>h-B-(v-mnP)/rp*(h-B-T);
+  let g='';
+  for(let i=0;i<=4;i++){ const v=mnP+rp*i/4, y=Y(v); g+=`<line x1=""${L}"" x2=""${w-R}"" y1=""${y}"" y2=""${y}"" stroke=""#eee""/><text x=""${L-6}"" y=""${y+3}"" text-anchor=""end"" font-size=""10"" fill=""#80868b"">${v.toFixed(2)}</text>`; }
+  for(let i=0;i<=4;i++){ const t=mnT+rt*i/4, d=new Date(t); g+=`<text x=""${X(t)}"" y=""${h-6}"" text-anchor=""middle"" font-size=""10"" fill=""#80868b"">${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}</text>`; }
+  series.forEach(s=>{
+    const sel=!hl||s.name===hl;
+    if(s.pts.length>1) g+=`<polyline fill=""none"" stroke=""${s.col}"" stroke-width=""${sel?2.8:1.4}"" opacity=""${sel?1:.45}"" points=""${s.pts.map(p=>X(p.t)+','+Y(p.v)).join(' ')}""/>`;
+    s.pts.forEach(p=>{ g+=`<circle cx=""${X(p.t)}"" cy=""${Y(p.v)}"" r=""${sel?3.8:2.6}"" fill=""${s.col}"" opacity=""${sel?1:.45}""><title>${escH(s.name)} · ${p.f} · ${eur(p.v)}</title></circle>`; });
   });
-  fila.querySelector('td').innerHTML=`<div class=""art-panel"">
-    <canvas class=""hist-canvas"" width=""260"" height=""90""></canvas>
-    <div class=""art-lista""><div class=""art-reg cab""><span>Fecha</span><span>Documento</span><span>Cant.</span><span>Precio</span><span>vs anterior</span><span>vs 1º</span></div>${lineas}</div>
-    <div class=""art-otras""><b>También en otras empresas</b>${otras.length?otras.join(''):'<i>Solo se ha comprado aquí</i>'}</div></div>`;
-  dibujarHistorico(fila.querySelector('canvas'), regs);
+  return `<svg viewBox=""0 0 ${w} ${h}"" style=""width:100%;height:auto;max-height:270px"">${g}</svg>`;
+}
+function colEmpArt(e){ const l=window._artEmpresas||[]; const i=l.indexOf(e); return COL_ART[(i<0?0:i)%COL_ART.length]; }
+const serieDe=o=>({name:o.empresa,col:colEmpArt(o.empresa),pts:o.regs.filter(r=>r.precio>0).map(r=>({t:new Date(r.fecha||r.guardado.slice(0,10)||'2000-01-01').getTime(),v:r.precio,f:r.fechaTxt}))});
+
+/* ─── Interruptores y KPIs clicables ─── */
+function setArtVista(v){ artVista=v; filtrar(); }
+function artKpi(k){ artFoco=(artFoco===k&&k!=='todos')?'':k; filtrar(); }
+function artCerrarGaleria(){ artFoco=''; filtrar(); }
+// Chip ▲/▼ de la cabecera de empresa: filtra por esa empresa y por dirección.
+function artChip(emp,vr){
+  const se=$id('filtroEmpresa'); if([...se.options].some(o=>o.value===emp)) se.value=emp;
+  $id('artVar').value=vr; filtrar();
+}
+function artColEmp(emp){
+  const se=$id('filtroEmpresa'); if(![...se.options].some(o=>o.value===emp)) return;
+  se.value = se.value===emp ? '' : emp; filtrar();
+}
+const TIT_ART={todos:'Todos los artículos',sube:'Artículos que han SUBIDO ▲',baja:'Artículos que han BAJADO ▼',gasto:'Mayor gasto',ahorro:'Dónde se puede ahorrar (comprar al más barato)'};
+function kpisArt(L0){
+  const su=L0.filter(x=>x.st.varTotal!==null&&x.st.varTotal>=0.05), ba=L0.filter(x=>x.st.varTotal!==null&&x.st.varTotal<=-0.05);
+  const ms=[...su].sort((x,y)=>y.st.varTotal-x.st.varTotal)[0], mb=[...ba].sort((x,y)=>x.st.varTotal-y.st.varTotal)[0];
+  const claves=[...new Set(L0.map(x=>x.a.clave))];
+  const aho=claves.reduce((s,k)=>{ const c=cmpArticulo(k); return s+(c&&c.multi?c.total:0); },0);
+  const k=(key,l,v,s)=>`<div class=""art-kpi click${artFoco===key?' on':''}"" onclick=""artKpi('${key}')"" title=""Clic para ver las gráficas""><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`;
+  const op=x=>x?`data-ac=""open"" data-clave=""${encA(x.a.clave)}"" data-emp=""${encA(x.a.empresa)}""`:'';
+  return `<div class=""art-kpis"">${k('todos','Artículos',L0.length,'ver todas las gráficas')}${k('sube','Han subido ▲',su.length,'ver gráficas')}${k('baja','Han bajado ▼',ba.length,'ver gráficas')}
+    <div class=""art-kpi click"" ${op(ms)}><span>Mayor subida</span><b>${ms?fmtVar(ms.st.varTotal):'—'}</b>${ms?`<small>${escH(ms.a.nombre)} · ${escH(ms.a.empresa)}</small>`:''}</div>
+    <div class=""art-kpi click"" ${op(mb)}><span>Mayor bajada</span><b>${mb?fmtVar(mb.st.varTotal):'—'}</b>${mb?`<small>${escH(mb.a.nombre)} · ${escH(mb.a.empresa)}</small>`:''}</div>
+    ${k('gasto','Gasto en artículos',eur(L0.reduce((s,x)=>s+x.st.gasto,0)),'ver los de mayor gasto')}
+    ${k('ahorro','Ahorro potencial',`<span style=""color:#137333"">${eur(aho)}</span>`,'ver dónde se ahorra')}</div>`;
 }
 
+/* ─── Galería de gráficas (al pulsar un KPI) ─── */
+function galeriaArt(L0){
+  if(!artFoco) return '';
+  let html='', n=0;
+  if(artFoco==='ahorro'){
+    const arts=[...new Set(L0.map(x=>x.a.clave))].map(k=>({k,c:cmpArticulo(k)})).filter(x=>x.c&&x.c.multi&&x.c.total>0.004).sort((a,b)=>b.c.total-a.c.total);
+    n=arts.length;
+    html=arts.map(({k,c})=>`<div class=""art-gc"" data-ac=""open"" data-clave=""${encA(k)}"" data-emp=""${encA(c.mej.emp)}"">
+      <div class=""t""><b>${escH(c.nombre)}</b><span class=""pill mej"">ahorro ${eur(c.total)}</span></div>
+      <small>🏆 más barato: ${escH(c.mej.emp)} (${eur(c.mej.v)})</small>${chartSvg(c.filas.map(f=>serieDe(f.a)),null,300,120)}</div>`).join('');
+  } else {
+    let G=[...L0];
+    if(artFoco==='sube') G=G.filter(x=>x.st.varTotal!==null&&x.st.varTotal>=0.05).sort((a,b)=>b.st.varTotal-a.st.varTotal);
+    else if(artFoco==='baja') G=G.filter(x=>x.st.varTotal!==null&&x.st.varTotal<=-0.05).sort((a,b)=>a.st.varTotal-b.st.varTotal);
+    else if(artFoco==='gasto') G=G.sort((a,b)=>b.st.gasto-a.st.gasto).slice(0,12);
+    n=G.length;
+    html=G.map(x=>`<div class=""art-gc"" data-ac=""open"" data-clave=""${encA(x.a.clave)}"" data-emp=""${encA(x.a.empresa)}"">
+      <div class=""t""><b>${escH(x.a.nombre)}</b><span class=""pill ${clsVar(x.st.varTotal)}"">${x.st.varTotal===null?'—':(x.st.varTotal>0?'+':'')+x.st.varTotal.toFixed(1)+'%'}</span></div>
+      <small>${escH(x.a.empresa)} · ${x.st.n} registros</small>${miniSvg(x.a.regs)}
+      <div class=""pie""><span>1º ${x.st.primero?eur(x.st.primero.precio):'—'}</span><span>${artFoco==='gasto'?'Gasto '+eur(x.st.gasto):'último '+eur(x.st.ultimo.precio)}</span></div></div>`).join('');
+  }
+  return `<div class=""art-foco""><b>${TIT_ART[artFoco]}</b><span>${n} gráfica(s) · clic en cualquiera para ver el detalle</span><button onclick=""artCerrarGaleria()"">✕ Cerrar galería</button></div>
+    <div class=""art-gal"">${html||'<div id=""vacio"" style=""grid-column:1/-1"">Sin resultados</div>'}</div>`;
+}
+
+/* ─── Detalle de un artículo: gráfica comparada, histórico y fórmulas ─── */
+function detalleArtHTML(clave,empSel){
+  const c=cmpArticulo(clave); if(!c) return '';
+  const fSel=c.filas.find(f=>f.emp===empSel)||c.filas[0];
+  const ser=c.filas.filter(f=>!artOcultas.has(f.emp)).map(f=>serieDe(f.a));
+  const todos=c.filas.flatMap(f=>f.a.regs.filter(r=>r.precio>0).map((r,i,arr)=>({r,i,arr,emp:f.emp})))
+    .sort((a,b)=>(b.r.fecha||b.r.guardado).localeCompare(a.r.fecha||a.r.guardado)).slice(0,20);
+  const modoTxt={ultimo:'último precio',media:'precio medio',min:'mínimo histórico',primero:'primer precio'}[$id('artModo').value];
+  const dk=c.filas.map(f=>`<div class=""art-kpi click"" style=""${f.emp===fSel.emp?'border-color:'+colEmpArt(f.emp):''}"" data-ac=""selEmp"" data-emp=""${encA(f.emp)}"" data-clave=""${encA(clave)}"">
+    <span><i class=""sw"" style=""background:${colEmpArt(f.emp)}""></i> ${escH(f.emp)}</span><b>${f.st.ultimo?eur(f.st.ultimo.precio):'—'}</b> ${fmtVar(f.st.varTotal)}
+    <small>${f.st.n} regs · gasto ${eur(f.st.gasto)}</small>${f.esMejor?'<span class=""pill mej"">🏆 más barato</span>':(f.pct?`<span class=""pill sube"">+${f.pct.toFixed(1)}% vs mejor</span>`:'')}</div>`).join('');
+  const leg=c.filas.map(f=>`<label><input type=""checkbox"" data-ac=""leg"" data-emp=""${encA(f.emp)}"" ${artOcultas.has(f.emp)?'':'checked'}><span class=""sw"" style=""background:${colEmpArt(f.emp)}""></span>${escH(f.emp)}</label>`).join('');
+  const hist=todos.map(x=>`<div class=""art-reg"" data-ac=""doc"" data-idx=""${x.r.idx}"" title=""Abrir el documento"">
+    <span>${escH(x.r.fechaTxt)}</span><span>${escH(x.emp)}</span><span>${x.r.cant}</span><span>${eur(x.r.precio)}</span>
+    <span>${x.i?fmtVar(pctVar(x.r.precio,x.arr[x.i-1].precio)):'—'}</span><span>${x.i?fmtVar(pctVar(x.r.precio,x.arr[0].precio)):'—'}</span></div>`).join('');
+  const ln=t=>`<div class=""l"">${t}</div>`;
+  const formula=`<div class=""art-formula""><b>🧮 Cómo se calcula (con los datos de este artículo)</b>
+    ${ln('Variación desde el 1º = <code>(último − primero) / primero × 100</code>')}
+    ${c.filas.map(f=>ln(`· ${escH(f.emp)}: (${f.st.ultimo?n2(f.st.ultimo.precio):'—'} − ${f.st.primero?n2(f.st.primero.precio):'—'}) / ${f.st.primero?n2(f.st.primero.precio):'—'} = ${fmtVar(f.st.varTotal)}`)).join('')}
+    ${ln(`<br>Comparación (${modoTxt}) = <code>(precio − mejor) / mejor × 100</code> · mejor = ${eur(c.mej.v)} (${escH(c.mej.emp)})`)}
+    ${c.filas.map(f=>ln(`· ${escH(f.emp)}: (${n2(f.v)} − ${n2(c.mej.v)}) / ${n2(c.mej.v)} = ${f.emp===c.mej.emp?'<span class=""var baja"">mejor</span>':fmtVar(f.pct)}`)).join('')}
+    ${ln('<br>Ahorro potencial = <code>(precio − mejor) × cantidad comprada</code>')}
+    ${c.filas.map(f=>ln(`· ${escH(f.emp)}: (${n2(f.v)} − ${n2(c.mej.v)}) × ${f.st.cant} = ${eur(f.ahorro)}`)).join('')}
+    ${ln(`<b>Total: ${eur(c.total)}</b>`)}</div>`;
+  const vars=c.filas.filter(f=>f.a.variantes&&f.a.variantes.size>1).map(f=>`${escH(f.emp)}: `+[...f.a.variantes.entries()].map(([d,n])=>escH(d)+' ('+n+')').join(' · '));
+  const lineaVar=vars.length?`<div class=""art-nota"">🔗 Nombres agrupados en este artículo — ${vars.join(' &nbsp;|&nbsp; ')} <span class=""lk"" onclick=""abrirFus('act')"">Gestionar fusiones</span></div>`:'';
+  return `<div class=""art-dk"">${dk}</div>${lineaVar}<div class=""art-leg"">${leg}</div>${chartSvg(ser,fSel.emp)}
+    <div class=""art-dos""><div><b style=""font-size:.85em"">Histórico de compras</b><div class=""art-reglst""><div class=""art-reg h""><span>Fecha</span><span>Empresa</span><span>Cant.</span><span>Precio</span><span>vs ant.</span><span>vs 1º</span></div>${hist}</div></div>${formula}</div>`;
+}
+function pintarArt(){
+  const c=cmpArticulo(artSel.clave);
+  $id('artT').textContent=c?c.nombre:'';
+  $id('artB').innerHTML=detalleArtHTML(artSel.clave,artSel.emp);
+}
+function abrirArt(clave,emp){
+  artSel={clave,emp};
+  artNav=[...new Set(articulosFiltrados(true).map(x=>x.a.clave))];
+  if(!artNav.includes(clave)) artNav.push(clave);
+  artNavPos=artNav.indexOf(clave);
+  pintarArt(); $id('modal-art').classList.add('activo');
+}
+function cerrarArt(){ $id('modal-art').classList.remove('activo'); }
+function navArt(d){
+  if(!artNav.length) return;
+  artNavPos=(artNavPos+d+artNav.length)%artNav.length;
+  artSel={clave:artNav[artNavPos],emp:null}; pintarArt();
+}
+// Un único manejador delegado para todo lo clicable (evita problemas de comillas en nombres).
+document.addEventListener('click',function(e){
+  const t=e.target.closest('[data-ac]'); if(!t) return;
+  const a=t.dataset.ac, clave=t.dataset.clave?decA(t.dataset.clave):null, emp=t.dataset.emp?decA(t.dataset.emp):null;
+  if(a==='open'){ abrirArt(clave,emp); }
+  else if(a==='selEmp'){ artSel={clave:clave||artSel.clave,emp:emp}; pintarArt(); }
+  else if(a==='chip'){ artChip(emp,t.dataset.vr); }
+  else if(a==='colEmp'){ artColEmp(emp); }
+  else if(a==='doc'){ abrirModal(parseInt(t.dataset.idx,10)); }
+});
+document.addEventListener('change',function(e){
+  const t=e.target; if(!t.dataset||t.dataset.ac!=='leg') return;
+  const n=decA(t.dataset.emp); t.checked?artOcultas.delete(n):artOcultas.add(n); pintarArt();
+});
+document.addEventListener('keydown',function(e){
+  if(!$id('modal-art').classList.contains('activo')) return;
+  if($id('modal').classList.contains('activo')) return;   // el modal de documento tiene prioridad
+  if($id('modal-fus').classList.contains('activo')) return; // y el de fusiones
+  if(e.key==='Escape') cerrarArt();
+  if(e.key==='ArrowLeft') navArt(-1);
+  if(e.key==='ArrowRight') navArt(1);
+});
+
+// 🔗 N: el artículo agrupa varios nombres originales (tooltip con la lista y cuántas veces aparece cada uno).
+function insigniaVariantes(a){
+  if(!a.variantes||a.variantes.size<2) return '';
+  const l=[...a.variantes.entries()].sort((x,y)=>y[1]-x[1]).map(([d,n])=>d+' ('+n+')').join(' · ');
+  return ` <span class=""pill igual"" title=""${escH('Nombres agrupados: '+l)}"">🔗 ${a.variantes.size}</span>`;
+}
+/* ─── Vista TABLA (A): por empresa, con el comparador integrado ─── */
+function tablaArt(L){
+  const g={}; L.forEach(x=>(g[x.a.empresa]=g[x.a.empresa]||[]).push(x));
+  return Object.keys(g).sort().map(emp=>{
+    const G=g[emp], su=G.filter(x=>x.st.varTotal>=0.05).length, ba=G.filter(x=>x.st.varTotal<=-0.05).length;
+    const mx=Math.max(...G.map(x=>Math.abs(x.st.varTotal||0)),1);
+    const filas=G.map(x=>{
+      const st=x.st, c=x.c, f=x.f, k=clsVar(st.varTotal), w=Math.round(Math.abs(st.varTotal||0)/mx*40);
+      const ac=`data-ac=""open"" data-clave=""${encA(x.a.clave)}"" data-emp=""${encA(x.a.empresa)}""`;
+      const vs=!c||!c.multi?'<span class=""var igual"">solo aquí</span>':f.esMejor?'<span class=""pill mej"">🏆 mejor precio</span>':fmtVar(f.pct);
+      const barato=!c||!c.multi||f.esMejor?'—':`<span class=""lk"" data-ac=""open"" data-clave=""${encA(x.a.clave)}"" data-emp=""${encA(c.mej.emp)}"">${escH(c.mej.emp)} · ${eur(c.mej.v)}</span>`;
+      return `<tr class=""art-fila${artSel.clave===x.a.clave&&artSel.emp===x.a.empresa?' sel':''}"" ${ac}>
+        <td><b>${escH(x.a.nombre)}</b>${insigniaVariantes(x.a)}</td><td class=""n"">${st.n}</td><td class=""n"">${st.primero?eur(st.primero.precio):'—'}</td>
+        <td class=""n""><b>${eur(st.ultimo.precio)}</b>${fmtVar(st.varTotal)}</td>
+        <td>${sparkSvg(x.a.regs.filter(r=>r.precio>0).map(r=>r.precio))}<span class=""heatb"" style=""width:${w}px;background:${k==='sube'?'#c5221f':k==='baja'?'#137333':'#bbb'}""></span></td>
+        <td class=""n"">${vs}</td><td>${barato}</td>
+        <td class=""n"">${x.ahorro>0.004?`<b style=""color:#137333"">${eur(x.ahorro)}</b>`:'—'}</td><td class=""n"">${eur(st.gasto)}</td></tr>`;
+    }).join('');
+    return `<div class=""empresa-grupo""><div class=""empresa-cab"">🏢 ${escH(emp)}<span class=""count"">${G.length}</span>
+      <span class=""suma""><span class=""chipv sube"" data-ac=""chip"" data-emp=""${encA(emp)}"" data-vr=""sube"" title=""Filtrar: solo los que suben en esta empresa"">▲ ${su}</span>
+      <span class=""chipv baja"" data-ac=""chip"" data-emp=""${encA(emp)}"" data-vr=""baja"" title=""Filtrar: solo los que bajan en esta empresa"">▼ ${ba}</span>
+      <span>${eur(G.reduce((s,x)=>s+x.st.gasto,0))}</span></span></div>
+      <div class=""wrapx""><table class=""arts""><thead><tr><th>Artículo</th><th class=""n"">Regs.</th><th class=""n"">1er precio</th><th class=""n"" title=""Último precio y variación desde el primer registro"">Último (var. desde 1º)</th><th>Evolución</th><th class=""n"">vs mejor precio</th><th>Más barato en</th><th class=""n"">Ahorro pot.</th><th class=""n"">Gasto</th></tr></thead><tbody>${filas}</tbody></table></div></div>`;
+  }).join('')+'<div class=""art-nota"">Clic en una fila → detalle con gráfica comparada, histórico y fórmulas · clic en ▲/▼ de la empresa → filtra · clic en ""Más barato en"" → abre esa empresa.</div>';
+}
+
+/* ─── Vista MATRIZ (B): artículo × empresa ─── */
+function matrizArt(L){
+  const claves=[...new Set(L.map(x=>x.a.clave))];
+  const nombres={}; L.forEach(x=>nombres[x.a.clave]=x.a.nombre);
+  claves.sort((a,b)=>nombres[a].localeCompare(nombres[b],'es'));
+  const se=$id('filtroEmpresa').value;
+  const emps=(se?[se]:(window._artEmpresas||[])).filter(e=>L.some(x=>x.a.empresa===e));
+  const idx={}; L.forEach(x=>idx[x.a.empresa+'|'+x.a.clave]=x);
+  const gan={}; emps.forEach(e=>gan[e]=0); let aho=0;
+  const filas=claves.map(k=>{ const c=cmpArticulo(k); if(c&&c.multi){ aho+=c.total; c.filas.forEach(f=>{ if(f.esMejor&&gan[f.emp]!==undefined) gan[f.emp]++; }); } return {k,c}; });
+  const hdr=emps.map(e=>`<th class=""n clk${se===e?' sel':''}"" data-ac=""colEmp"" data-emp=""${encA(e)}"" title=""Clic: ver solo ${escH(e)}"">${escH(e)}</th>`).join('');
+  const body=filas.map(({k,c})=>`<tr><td><span class=""lk"" data-ac=""open"" data-clave=""${encA(k)}"" data-emp=""${encA(c.mej.emp)}""><b>${escH(nombres[k])}</b></span></td>${emps.map(e=>{
+      const x=idx[e+'|'+k], f=c?c.filas.find(z=>z.emp===e):null;
+      if(!x||!f) return '<td class=""cel vacio"">—</td>';
+      const sel=artSel.clave===k&&artSel.emp===e;
+      return `<td class=""cel${f.esMejor?' mej':''}${sel?' sel':''}"" data-ac=""open"" data-clave=""${encA(k)}"" data-emp=""${encA(e)}"">
+        <div class=""p"">${f.esMejor?'🏆 ':''}${eur(f.v)}</div>
+        <div class=""d"">${f.esMejor?'<span class=""var baja"">mejor</span>':(c.multi?fmtVar(f.pct):'')} ${fmtVar(x.st.varTotal)}</div>${sparkSvg(x.a.regs.filter(r=>r.precio>0).map(r=>r.precio),70,18)}</td>`;
+    }).join('')}<td class=""n"">${c&&c.multi&&c.total>0.004?`<b style=""color:#137333"">${eur(c.total)}</b>`:'—'}</td></tr>`).join('');
+  const top=Object.entries(gan).sort((a,b)=>b[1]-a[1])[0];
+  return `<div class=""art-ahorro""><span>💡 Ahorro potencial comprando siempre al más barato:</span><b>${eur(aho)}</b>
+      <span>🏆 Más competitiva: <b>${top&&top[1]?escH(top[0]):'—'}</b></span></div>
+    <div class=""wrapx"" style=""border-radius:10px""><table class=""arts""><thead><tr><th>Artículo</th>${hdr}<th class=""n"">Ahorro potencial</th></tr></thead><tbody>${body}</tbody>
+    <tfoot><tr><td>Artículos más baratos</td>${emps.map(e=>`<td class=""n"">${gan[e]}</td>`).join('')}<td class=""n"">${eur(aho)}</td></tr></tfoot></table></div>
+    <div class=""art-nota"">Clic en una celda → detalle · clic en el nombre → detalle del más barato · clic en la cabecera de empresa → filtra · % rojo = más caro que el mejor · 2º % = variación desde su 1er registro.</div>`;
+}
+
+function renderArticulos(lista,c){
+  const L0=articulosFiltrados(true), L=articulosFiltrados(false);
+  window._artEmpresas=[...new Set([...(window._artMapa||new Map()).values()].map(o=>o.empresa))].sort();
+  $id('contador').textContent=L.length+' artículo(s)'+(artFoco?' · foco: '+artFoco:'');
+  $id('btnArtTabla').classList.toggle('on',artVista==='tabla'); $id('btnArtMatriz').classList.toggle('on',artVista==='matriz');
+  if(!L0.length){ c.innerHTML='<div id=""vacio"">No se encontraron artículos con estos filtros.</div>'; actualizarBadgeFus(); return; }
+  c.innerHTML=kpisArt(L0)+galeriaArt(L0)+(L.length?(artVista==='matriz'?matrizArt(L):tablaArt(L)):'<div id=""vacio"">Sin artículos con el foco actual.</div>');
+  actualizarBadgeFus();
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Fusión de nombres de artículos (el usuario decide; se recuerda en localStorage)
+   - Nunca se funde automáticamente: solo se SUGIERE y se pide ✔ / ✖.
+   - Color, volumen, peso, medidas, packs y códigos distintos => no se sugiere.
+   ═══════════════════════════════════════════════════════════════════════ */
+const CLAVE_FUS='facticket_fusiones_v1';
+let fusiones={alias:{}, rechazadas:[]};   // alias: claveOrigen -> claveDestino
+let fusUmbral=75;                          // similitud mínima (%) de la lista ""revisar""
+let fusTab='sug';
+let fusCache=null;
+// Palabras que se ignoran al comparar nombres (artículos, preposiciones y envases genéricos).
+const STOP_ART=new Set(['de','del','la','el','los','las','y','con','para','en','un','una','por']);
+const ENVASE_ART=new Set(['saco','sacos','bote','botes','caja','cajas','paquete','paquetes','pack','packs','unidad','unidades','ud','uds','botella','botellas','lata','latas','bolsa','bolsas','envase','garrafa']);
+const COLORES_ART=['blanco','negro','rojo','azul','verde','amarillo','gris','marron','naranja','rosa','beige','transparente','plata','dorado','cromado','morado','violeta','crema','antracita'];
+// Grupos de sinónimos conocidos (editable): sus palabras se tratan como la misma.
+const SINONIMOS_ART=[['gasoil','gasoleo']];
+
+function leerFusiones(){
+  try{ const o=JSON.parse(localStorage.getItem(CLAVE_FUS)||'null'); if(o&&o.alias) fusiones={alias:o.alias,rechazadas:o.rechazadas||[]}; }catch(e){}
+}
+function guardarFusiones(){ try{ localStorage.setItem(CLAVE_FUS,JSON.stringify(fusiones)); }catch(e){} fusCache=null; }
+// Clave canónica: sigue la cadena de alias (con tope por seguridad).
+function canonArt(k){ let i=0; while(fusiones.alias[k] && i++<30) k=fusiones.alias[k]; return k; }
+const parKey=(a,b)=>a<b?a+'\u0001'+b:b+'\u0001'+a;
+
+// Plural simple: tornillos -> tornillo.
+function stemA(w){ return (w.length>3&&w.endsWith('s'))?w.slice(0,-1):w; }
+function colorCanon(w){
+  let x=w.length>3&&w.endsWith('s')?w.slice(0,-1):w;
+  if(COLORES_ART.includes(x)) return x;
+  if(x.endsWith('a')&&COLORES_ART.includes(x.slice(0,-1)+'o')) return x.slice(0,-1)+'o';
+  return null;
+}
+function sinCanon(w){ for(const g of SINONIMOS_ART) if(g.includes(w)) return g[0]; return w; }
+// Unidades a una base común: kg->g, l/cl->ml, cm/m->mm, ud.
+function uniMed(v,u){
+  v=parseFloat(v); u=u.toLowerCase();
+  if(u==='kg') return Math.round(v*1000)+'g';
+  if(/^(g|gr|grs)$/.test(u)) return Math.round(v)+'g';
+  if(/^(l|lt|lts|litro|litros)$/.test(u)) return Math.round(v*1000)+'ml';
+  if(u==='cl') return Math.round(v*10)+'ml';
+  if(u==='ml') return Math.round(v)+'ml';
+  if(u==='cm') return Math.round(v*100)/10+'mm';
+  if(u==='mm') return Math.round(v*100)/100+'mm';
+  if(/^(m|mts|metro|metros)$/.test(u)) return Math.round(v*1000)+'mm';
+  if(/^(ud|uds|unidad|unidades)$/.test(u)) return Math.round(v)+'ud';
+  return v+u;
+}
+// Descompone un nombre ya normalizado (normArt) en: palabras, colores, medidas y códigos.
+function parseArt(norm){
+  let t=' '+norm.replace(/(\d),(\d)/g,'$1.$2')+' ';
+  const med=new Set(), cod=new Set(), colores=new Set(), words=[];
+  const U='kg|g|gr|grs|l|lt|lts|litro|litros|ml|cl|mm|cm|m|mts|metro|metros';
+  // Packs: 6x1.5l
+  t=t.replace(new RegExp('(\\d+)\\s*[x×]\\s*(\\d+(?:\\.\\d+)?)\\s*('+U+')\\b','g'),(m,n,v,u)=>{ med.add('pack'+n+'x'+uniMed(v,u)); return ' '; });
+  // Dimensiones: 5x40 o 10x20x30 (con unidad opcional)
+  t=t.replace(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)(?:\s*[x×]\s*(\d+(?:\.\d+)?))?(?:\s*(?:mm|cm))?/g,(m,a,b,c)=>{ med.add('dim'+[a,b,c].filter(Boolean).map(Number).join('x')); return ' '; });
+  // Número + unidad: 25kg, 15l, 2.5mm, 9w...
+  t=t.replace(new RegExp('(\\d+(?:\\.\\d+)?)\\s*('+U+'|w|v|ud|uds|unidad|unidades)\\b','g'),(m,v,u)=>{ med.add(uniMed(v,u)); return ' '; });
+  t.split(/[^a-z0-9]+/).filter(Boolean).forEach(tok=>{
+    if(/\d/.test(tok)){ cod.add(tok); return; }
+    if(STOP_ART.has(tok)||ENVASE_ART.has(tok)) return;
+    const c=colorCanon(tok); if(c){ colores.add(c); return; }
+    words.push(stemA(tok));
+  });
+  return {words,colores,med,cod};
+}
+function levA(a,b){
+  const m=a.length,n=b.length; if(!m) return n; if(!n) return m;
+  let prev=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){ const cur=[i]; for(let j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1)); prev=cur; }
+  return prev[n];
+}
+// Dos palabras ""iguales"": idénticas, sinónimas, o muy parecidas (typos) si son largas.
+function palabraIgual(a,b){
+  if(a===b||sinCanon(a)===sinCanon(b)) return true;
+  if(Math.min(a.length,b.length)<5) return false;
+  return 1-levA(a,b)/Math.max(a.length,b.length)>=0.82;
+}
+const igualesSet=(a,b)=>a.size===b.size&&[...a].every(x=>b.has(x));
+// Compara dos nombres parseados. Devuelve null si NO deben sugerirse (medidas, códigos o
+// colores distintos) o {score, tipo:'seguro'|'revisar', difiere:[...]}.
+function compararNombres(pa,pb){
+  if(!igualesSet(pa.med,pb.med)) return null;                 // volumen/peso/medida/pack distinto
+  if(!igualesSet(pa.cod,pb.cod)) return null;                 // códigos distintos (E27, F10...)
+  if(pa.colores.size&&pb.colores.size&&!igualesSet(pa.colores,pb.colores)) return null;  // colores distintos
+  if(!pa.words.length||!pb.words.length) return null;
+  const ub=[...pb.words], exA=[]; let m=0;
+  pa.words.forEach(w=>{ const i=ub.findIndex(x=>palabraIgual(w,x)); if(i>=0){ m++; ub.splice(i,1); } else exA.push(w); });
+  if(!m) return null;
+  const difColor=[...pa.colores].filter(c=>!pb.colores.has(c)).concat([...pb.colores].filter(c=>!pa.colores.has(c)));
+  const difiere=exA.concat(ub,difColor);
+  return {score:2*m/(pa.words.length+pb.words.length), tipo:difiere.length?'revisar':'seguro', difiere};
+}
+// Sugerencias de fusión entre los nombres canónicos actuales (con caché).
+function sugerenciasFusion(){
+  const mapa=window._artMapa||new Map();
+  const sig=mapa.size+'|'+tickets.length+'|'+Object.keys(fusiones.alias).length+'|'+fusiones.rechazadas.length+'|'+fusUmbral;
+  if(fusCache&&fusCache.sig===sig) return fusCache.res;
+  const nom=new Map();
+  mapa.forEach(a=>{
+    let o=nom.get(a.clave); if(!o){ o={k:a.clave,nombre:a.nombre,emps:new Map(),n:0}; nom.set(a.clave,o); }
+    const pr=a.regs.filter(r=>r.precio>0), u=pr.length?pr[pr.length-1]:null;
+    o.emps.set(a.empresa,{precio:u?u.precio:0,n:a.regs.length}); o.n+=a.regs.length;
+  });
+  const lista=[...nom.values()]; lista.forEach(o=>o.p=parseArt(o.k));
+  const buckets=new Map();
+  lista.forEach(o=>{ new Set(o.p.words.map(w=>sinCanon(w).slice(0,4))).forEach(b=>{ if(!buckets.has(b)) buckets.set(b,[]); buckets.get(b).push(o); }); });
+  const vistos=new Set(), rej=new Set(fusiones.rechazadas), seguras=[], revisar=[];
+  buckets.forEach(arr=>{
+    if(arr.length>300) return;
+    for(let i=0;i<arr.length;i++) for(let j=i+1;j<arr.length;j++){
+      const A=arr[i], B=arr[j], pk=parKey(A.k,B.k);
+      if(vistos.has(pk)||rej.has(pk)) continue; vistos.add(pk);
+      const r=compararNombres(A.p,B.p); if(!r) continue;
+      const par=A.n>=B.n?{dest:A,orig:B,r}:{dest:B,orig:A,r};
+      if(r.tipo==='seguro') seguras.push(par); else if(r.score*100>=fusUmbral) revisar.push(par);
+    }
+  });
+  const ord=(a,b)=>b.r.score-a.r.score||b.dest.n-a.dest.n;
+  const res={seguras:seguras.sort(ord), revisar:revisar.sort(ord), nombres:lista};
+  fusCache={sig,res}; return res;
+}
+// ─── Acciones ───
+function fusionarArt(origen,destino){
+  const o=canonArt(origen), d=canonArt(destino); if(!o||!d||o===d) return false;
+  fusiones.alias[o]=d; guardarFusiones(); return true;
+}
+function deshacerFusion(origen){ delete fusiones.alias[origen]; guardarFusiones(); }
+function rechazarPar(a,b){ const pk=parKey(a,b); if(!fusiones.rechazadas.includes(pk)) fusiones.rechazadas.push(pk); guardarFusiones(); }
+function refrescarTrasFusion(){ filtrar(); pintarFus(); if($id('modal-art').classList.contains('activo')){ const ok=cmpArticulo(artSel.clave); if(ok) pintarArt(); else cerrarArt(); } }
+function actualizarBadgeFus(){
+  const n=sugerenciasFusion().seguras.length, b=$id('fusBadge'); if(!b) return;
+  b.textContent=n?n:''; b.style.display=n?'inline-block':'none';
+}
+// ─── Diálogo ───
+function abrirFus(tab){ if(tab) fusTab=tab; $id('modal-fus').classList.add('activo'); pintarFus(); }
+function cerrarFus(){ $id('modal-fus').classList.remove('activo'); }
+function infoNombre(o){ return [...o.emps.entries()].map(([e,v])=>`${escH(e)}: <b>${v.precio?eur(v.precio):'—'}</b> <small>(${v.n} reg.)</small>`).join(' · '); }
+function filaSug(p,seguro){
+  const ar=p.orig.nombre, br=p.dest.nombre;
+  return `<div class=""fus-fila ${seguro?'':'rev'}"">
+    <div class=""fus-nom""><div>«${escH(ar)}»<br><span class=""fus-inf"">${infoNombre(p.orig)}</span></div>
+      <div class=""fus-flecha"">↔</div>
+      <div>«${escH(br)}»<br><span class=""fus-inf"">${infoNombre(p.dest)}</span></div></div>
+    <div class=""fus-pie""><span class=""fus-sim"">Similitud ${Math.round(p.r.score*100)}%</span>
+      ${seguro?'<span class=""pill baja"">✅ mismas medidas y color</span>':`<span class=""pill sube"">⚠ difiere: ${escH(p.r.difiere.join(', '))}</span>`}
+      <span class=""fus-inf"">Se unificará como «${escH(br)}»</span>
+      <button class=""chip fus-si"" data-ac=""fus-si"" data-a=""${encA(p.orig.k)}"" data-b=""${encA(p.dest.k)}"">✔ Fundir</button>
+      <button class=""chip"" data-ac=""fus-no"" data-a=""${encA(p.orig.k)}"" data-b=""${encA(p.dest.k)}"">✖ Mantener separados</button></div></div>`;
+}
+function pintarFus(){
+  const s=sugerenciasFusion(), nAl=Object.keys(fusiones.alias).length;
+  const tabs=[['sug',`💡 Sugerencias (${s.seguras.length+s.revisar.length})`],['man','✍ Manual'],['act',`🔗 Activas (${nAl})`]];
+  let cuerpo='';
+  if(fusTab==='sug'){
+    cuerpo=`<div class=""fus-ctl""><label>Similitud mínima para «revisar»</label><input type=""number"" min=""40"" max=""100"" step=""5"" value=""${fusUmbral}"" data-ac=""fus-umbral"" style=""width:70px""> %
+      <span class=""fus-inf"">Las sugerencias con distinta medida, peso, volumen, pack o color <b>nunca</b> aparecen.</span></div>
+      <div class=""fus-tit"">✅ Seguras — mismo producto escrito distinto (${s.seguras.length})</div>
+      ${s.seguras.map(p=>filaSug(p,true)).join('')||'<div class=""fus-vacio"">No hay sugerencias seguras.</div>'}
+      <div class=""fus-tit"">⚠ Con diferencias — revisa antes de fundir (${s.revisar.length})</div>
+      ${s.revisar.map(p=>filaSug(p,false)).join('')||'<div class=""fus-vacio"">Nada que revisar.</div>'}`;
+  } else if(fusTab==='man'){
+    const opts=s.nombres.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(o=>`<option value=""${escH(o.nombre)}""></option>`).join('');
+    cuerpo=`<div class=""fus-man""><p>Une dos nombres que el programa no relaciona (ej. «Gasoil A» y «Diésel»). Escribe o elige de la lista:</p>
+      <label>Mantener el nombre</label><input id=""fusA"" list=""fusLista"" placeholder=""Nombre que se conserva"">
+      <label>Unificar con</label><input id=""fusB"" list=""fusLista"" placeholder=""Nombre que pasa a llamarse como el anterior"">
+      <datalist id=""fusLista"">${opts}</datalist>
+      <div><button class=""chip fus-si"" data-ac=""fus-man"">🔗 Fundir</button> <span id=""fusMsg"" class=""fus-inf""></span></div>
+      <p class=""fus-inf"">El histórico de precios de ambos se une y se compara entre empresas. Puedes deshacerlo en «Activas».</p></div>`;
+  } else {
+    const nombreDe=k=>{ const o=s.nombres.find(z=>z.k===k); return o?o.nombre:((window._artNombres||{})[k]||k); };
+    const al=Object.keys(fusiones.alias).map(o=>`<div class=""fus-fila""><div class=""fus-nom""><div>«${escH(nombreDe(o))}»</div><div class=""fus-flecha"">→</div><div>«${escH(nombreDe(canonArt(o)))}»</div></div>
+      <div class=""fus-pie""><button class=""chip"" data-ac=""fus-undo"" data-a=""${encA(o)}"">↩ Deshacer</button></div></div>`).join('');
+    cuerpo=`<div class=""fus-tit"">Fusiones activas (${nAl})</div>${al||'<div class=""fus-vacio"">Aún no has fundido ningún artículo.</div>'}
+      <div class=""fus-tit"">Sugerencias rechazadas (${fusiones.rechazadas.length})</div>
+      <div class=""fus-pie""><button class=""chip"" data-ac=""fus-reset"" ${fusiones.rechazadas.length?'':'disabled'}>Volver a mostrar las rechazadas</button></div>`;
+  }
+  $id('fusT').innerHTML=tabs.map(([k,l])=>`<button class=""${fusTab===k?'on':''}"" data-ac=""fus-tab"" data-a=""${k}"">${l}</button>`).join('');
+  $id('fusB').innerHTML=cuerpo;
+}
+document.addEventListener('click',function(e){
+  const t=e.target.closest('[data-ac]'); if(!t) return;
+  const a=t.dataset.ac, A=t.dataset.a?decA(t.dataset.a):null, B=t.dataset.b?decA(t.dataset.b):null;
+  if(a==='fus-tab'){ fusTab=A; pintarFus(); }
+  else if(a==='fus-si'){ if(fusionarArt(A,B)) refrescarTrasFusion(); }
+  else if(a==='fus-no'){ rechazarPar(A,B); pintarFus(); actualizarBadgeFus(); }
+  else if(a==='fus-undo'){ deshacerFusion(A); refrescarTrasFusion(); }
+  else if(a==='fus-reset'){ fusiones.rechazadas=[]; guardarFusiones(); pintarFus(); actualizarBadgeFus(); }
+  else if(a==='fus-man'){
+    const nA=normArt($id('fusA').value), nB=normArt($id('fusB').value), mapa=window._artMapa||new Map();
+    const existe=n=>[...mapa.values()].some(o=>normArt(o.nombre)===n||o.clave===n);
+    const clv=n=>{ for(const o of mapa.values()) if(normArt(o.nombre)===n||o.clave===n) return o.clave; return null; };
+    const msg=$id('fusMsg');
+    if(!nA||!nB||!existe(nA)||!existe(nB)){ msg.textContent='⚠ Elige dos nombres existentes de la lista.'; return; }
+    if(clv(nA)===clv(nB)){ msg.textContent='⚠ Ya son el mismo artículo.'; return; }
+    if(fusionarArt(clv(nB),clv(nA))){ refrescarTrasFusion(); }
+  }
+});
+document.addEventListener('input',function(e){
+  const t=e.target; if(t.dataset&&t.dataset.acU!==undefined) return;
+  if(t.dataset&&t.dataset.ac==='fus-umbral'){ fusUmbral=Math.max(40,Math.min(100,parseInt(t.value,10)||75)); fusCache=null; clearTimeout(window._fusT); window._fusT=setTimeout(()=>{ pintarFus(); actualizarBadgeFus(); },350); }
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&$id('modal-fus').classList.contains('activo')&&!$id('modal').classList.contains('activo')) cerrarFus();
+});
 /* ─── Init ─── */
 poblarFiltros();
 poblarSelectorAnios();
 try{ dibujarGrafico(); filtrarTrimestre(); } catch(e){ console.error(e); }
+leerFusiones();
 cargarVistasGuardadas();
 document.getElementById('lblTam').textContent = document.getElementById('sliderMiniatura').value+'px';
 filtrar();

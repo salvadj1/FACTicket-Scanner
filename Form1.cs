@@ -62,6 +62,7 @@ namespace FACTicket_Scanner
 
         // --- Autoguardado en lote: cuenta atrás de 5s si no se toca nada ---
         private System.Windows.Forms.Timer? timerAutoGuardarLote;
+        private ParpadeoControl? parpadeoAutoGuardarLote;   // el botón Guardar parpadea durante la cuenta atrás del lote
         private int segundosAutoGuardarLote;
 
         private Label lblEstado = null!;
@@ -393,6 +394,10 @@ namespace FACTicket_Scanner
                 ActualizarTextoAutoGuardado();
             };
             timerAutoGuardarLote.Start();
+
+            // El botón Guardar parpadea (verde <-> naranja) mientras dura la cuenta atrás
+            parpadeoAutoGuardarLote = new ParpadeoControl(panelGuardar.btnGuardar, System.Drawing.Color.Orange, 350);
+            parpadeoAutoGuardarLote.Iniciar();
         }
 
         private void ActualizarTextoAutoGuardado()
@@ -406,6 +411,8 @@ namespace FACTicket_Scanner
             timerAutoGuardarLote.Stop();
             timerAutoGuardarLote.Dispose();
             timerAutoGuardarLote = null;
+            parpadeoAutoGuardarLote?.Dispose();    // detiene el parpadeo y restaura los colores
+            parpadeoAutoGuardarLote = null;
             panelGuardar.btnGuardar.Text = "💾  Guardar";
         }
 
@@ -1094,7 +1101,7 @@ namespace FACTicket_Scanner
 
                     bool continuar = DialogoAutoConfirmar.Confirmar(
                         $"Esta imagen parece coincidir con una factura ya escaneada:\n\n{resumen}\n\n¿Continuar de todos modos?",
-                        "Posible imagen duplicada", resultadoPorDefecto: false);
+                        "Posible imagen duplicada", resultadoPorDefecto: false, traerAlFrente: true);
 
                     if (!continuar)
                     {

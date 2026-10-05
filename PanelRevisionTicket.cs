@@ -24,7 +24,7 @@ namespace FACTicket_Scanner
         private DatosTicket? _datosActuales;
         private readonly Timer _timer = new() { Interval = 1000 };
         private int _restantes;
-        private Label _lblContador = null!;
+        private CuentaAtrasVisual _lblContador = null!;
 
         public event EventHandler<RevisionCompletadaEventArgs>? RevisionCompletada;
 
@@ -44,12 +44,12 @@ namespace FACTicket_Scanner
             if (sinCuentaAtras)
             {
                 _timer.Stop();
-                _lblContador.Text = "";
+                _lblContador.Detener("");
                 return;
             }
 
             _restantes = Form1.Timeout_Dialogos;
-            _lblContador.Text = $"Se guardará automáticamente en {_restantes}s...";
+            _lblContador.Actualizar($"Se guardará automáticamente en {_restantes}s...", _restantes);
             _timer.Stop();
             _timer.Tick -= Timer_Tick;
             _timer.Tick += Timer_Tick;
@@ -65,11 +65,12 @@ namespace FACTicket_Scanner
                 Finalizar(guardar: true);
                 return;
             }
-            _lblContador.Text = $"Se guardará automáticamente en {_restantes}s...";
+            _lblContador.Actualizar($"Se guardará automáticamente en {_restantes}s...", _restantes);
         }
 
         private void ConstruirUi(DatosTicket datos)
         {
+            _lblContador?.Detener();   // para el parpadeo del contador anterior antes de reconstruir
             Controls.Clear();
             _textBoxes.Clear();
 
@@ -140,9 +141,10 @@ namespace FACTicket_Scanner
 
             var btnOk = new Button { Text = "Guardar", Left = xLbl, Top = y, Width = 120, Height = 30 };
             var btnCan = new Button { Text = "Cancelar", Left = xLbl + 170, Top = y, Width = 120, Height = 30 };
-            _lblContador = new Label { Left = xLbl, Top = y + 34, Width = 290, ForeColor = System.Drawing.Color.DimGray, Font = new System.Drawing.Font(Font.FontFamily, 10, System.Drawing.FontStyle.Bold) };
-            var btnCancelarTimer = new Button { Left = xLbl + 300, Top = y + 32, Width = 22, Height = 22, Text = "✕", FlatStyle = FlatStyle.Flat };
-            btnCancelarTimer.Click += (s, e) => { _timer.Stop(); _lblContador.Text = ""; btnCancelarTimer.Visible = false; };
+            // Cuenta atrás visual: fuente grande y parpadeo (más rápido y rojo al final)
+            _lblContador = new CuentaAtrasVisual(13f) { Left = xLbl, Top = y + 34, Width = 380 };
+            var btnCancelarTimer = new Button { Left = xLbl + 390, Top = y + 40, Width = 22, Height = 22, Text = "✕", FlatStyle = FlatStyle.Flat };
+            btnCancelarTimer.Click += (s, e) => { _timer.Stop(); _lblContador.Detener(""); btnCancelarTimer.Visible = false; };
             Controls.Add(btnOk);
             Controls.Add(btnCan);
             Controls.Add(_lblContador);
@@ -155,6 +157,7 @@ namespace FACTicket_Scanner
         private void Finalizar(bool guardar)
         {
             _timer.Stop();
+            _lblContador?.Detener("");
 
             if (!guardar || _datosActuales == null)
             {

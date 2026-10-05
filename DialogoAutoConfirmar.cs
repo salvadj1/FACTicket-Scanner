@@ -14,8 +14,10 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         // Diálogo Sí/No con cuenta atrás propia. resultadoPorDefecto se aplica
         // si el usuario no responde a tiempo.
+        // traerAlFrente = true: antes de mostrarse, trae la ventana principal al frente
+        // (maximizada si estaba minimizada o detrás de otra app) y luego el diálogo encima.
         // -----------------------------------------------------------------------
-        public static bool Confirmar(string mensaje, string titulo, bool resultadoPorDefecto, int segundos = Form1.Timeout_Dialogos)
+        public static bool Confirmar(string mensaje, string titulo, bool resultadoPorDefecto, int segundos = Form1.Timeout_Dialogos, bool traerAlFrente = false)
         {
             using var dlg = new Form
             {
@@ -40,15 +42,8 @@ namespace FACTicket_Scanner
                 MaximumSize = new System.Drawing.Size(380, 0),
                 Font = new System.Drawing.Font(dlg.Font.FontFamily, 9.5f)
             };
-            var lblContador = new Label
-            {
-                Left = 15,
-                Width = 380,
-                ForeColor = System.Drawing.Color.DimGray,
-                Font = new System.Drawing.Font(dlg.Font, System.Drawing.FontStyle.Bold),
-                AutoSize = false,
-                Height = 20
-            };
+            // Cuenta atrás visual: fuente grande y parpadeo (más rápido y rojo al final)
+            var lblContador = new CuentaAtrasVisual { Left = 15, Width = 330 };
             var btnSi = new Button { Text = "Sí", Width = 100, Height = 34, DialogResult = DialogResult.Yes };
             var btnNo = new Button { Text = "No", Width = 100, Height = 34, DialogResult = DialogResult.No };
             var btnX = new Button { Text = "✕", Width = 24, Height = 24, FlatStyle = FlatStyle.Flat };
@@ -59,8 +54,8 @@ namespace FACTicket_Scanner
             // ajusta el alto del diálogo para que quepa siempre completo.
             int yTrasMensaje = lblMensaje.Bottom + 12;
             lblContador.Top = yTrasMensaje;
-            int yBotones = yTrasMensaje + 30;
-            btnX.Location = new System.Drawing.Point(350, yTrasMensaje - 2);
+            int yBotones = yTrasMensaje + 48;
+            btnX.Location = new System.Drawing.Point(350, yTrasMensaje + 8);
             btnSi.Location = new System.Drawing.Point(130, yBotones);
             btnNo.Location = new System.Drawing.Point(240, yBotones);
             dlg.ClientSize = new System.Drawing.Size(dlg.ClientSize.Width, yBotones + 34 + 15);
@@ -68,7 +63,7 @@ namespace FACTicket_Scanner
             dlg.Shown += (s, e) => (resultadoPorDefecto ? btnSi : btnNo).Focus();
 
             int restantes = segundos;
-            lblContador.Text = $"Se autoconfirmará en {restantes}s...";
+            lblContador.Actualizar($"Se autoconfirmará en {restantes}s...", restantes);
             using var timer = new Timer { Interval = 1000 };
             timer.Tick += (s, e) =>
             {
@@ -80,7 +75,7 @@ namespace FACTicket_Scanner
                     dlg.Close();
                     return;
                 }
-                lblContador.Text = $"Se autoconfirmará en {restantes}s...";
+                lblContador.Actualizar($"Se autoconfirmará en {restantes}s...", restantes);
             };
             dlg.Shown += (s, e) => timer.Start();
             btnSi.Click += (s, e) => timer.Stop();
@@ -93,12 +88,15 @@ namespace FACTicket_Scanner
             {
                 if (!timer.Enabled) return;
                 timer.Stop();
-                lblContador.Text = "Cuenta atrás cancelada.";
+                lblContador.Detener("Cuenta atrás cancelada.");
             }
             dlg.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) CancelarCuentaAtras(); };
             dlg.MouseDown += (s, e) => { if (e.Button == MouseButtons.Right) CancelarCuentaAtras(); };
 
-            return dlg.ShowDialog() == DialogResult.Yes;
+            // Duplicados y similares: primero la app al frente (maximizada), luego el diálogo encima (sin maximizar)
+            Form? principal = traerAlFrente ? VentanaHelper.TraerPrincipalAlFrente() : null;
+            if (traerAlFrente) dlg.Shown += (s, e) => VentanaHelper.TraerAlFrente(dlg, maximizar: false);
+            return (principal != null ? dlg.ShowDialog(principal) : dlg.ShowDialog()) == DialogResult.Yes;
         }
 
         // -----------------------------------------------------------------------
@@ -122,7 +120,7 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         public static bool ConfirmarDuplicadoConVistaPrevia(OpenCvSharp.Mat imagenNueva, string? rutaImagenExistente,
             string mensaje, string titulo, bool resultadoPorDefecto, int segundos = 30,
-            LogComparacionDuplicado? log = null)
+            LogComparacionDuplicado? log = null, bool traerAlFrente = true)
         {
             // Convierte a Bitmap sin bloquear el archivo en disco
             System.Drawing.Bitmap? bmpExistente = null;
@@ -162,7 +160,7 @@ namespace FACTicket_Scanner
             };
 
             // --- Zona inferior: mensaje, contador y botones ---
-            var panelInferior = new Panel { Dock = DockStyle.Bottom, Height = log != null ? 270 : 190 };
+            var panelInferior = new Panel { Dock = DockStyle.Bottom, Height = log != null ? 296 : 214 };
             var lblMensaje = new Label
             {
                 Text = mensaje,
@@ -173,15 +171,8 @@ namespace FACTicket_Scanner
                 Height = 110,
                 Font = new System.Drawing.Font(dlg.Font.FontFamily, 9.5f)
             };
-            var lblContador = new Label
-            {
-                Left = 15,
-                Top = 122,
-                Width = 500,
-                Height = 20,
-                ForeColor = System.Drawing.Color.DimGray,
-                Font = new System.Drawing.Font(dlg.Font, System.Drawing.FontStyle.Bold)
-            };
+            // Cuenta atrás visual: fuente grande y parpadeo (más rápido y rojo al final)
+            var lblContador = new CuentaAtrasVisual { Left = 15, Top = 122, Width = 500 };
             var btnSi = new Button { Text = "Sí, continuar", Width = 140, Height = 34, DialogResult = DialogResult.Yes, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
             var btnNo = new Button { Text = "No, descartar", Width = 140, Height = 34, DialogResult = DialogResult.No, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
             panelInferior.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnSi, btnNo });
@@ -218,6 +209,7 @@ namespace FACTicket_Scanner
                     // Izquierda: resumen + contador (38 %). Derecha: log, con el botón
                     // de exportar justo debajo y alineado a la izquierda del log.
                     lblMensaje.Width = Math.Max(200, (int)(panelInferior.ClientSize.Width * 0.38));
+                    lblContador.Width = lblMensaje.Width;
                     int xLog = lblMensaje.Right + 15;
                     btnExportar.Location = new System.Drawing.Point(xLog, btnNo.Top);
                     txtLog.Location = new System.Drawing.Point(xLog, 8);
@@ -273,7 +265,7 @@ namespace FACTicket_Scanner
 
             // --- Cuenta atrás (misma mecánica que Confirmar) ---
             int restantes = segundos;
-            lblContador.Text = $"Se autoconfirmará en {restantes}s...";
+            lblContador.Actualizar($"Se autoconfirmará en {restantes}s...", restantes);
             using var timer = new Timer { Interval = 1000 };
             timer.Tick += (s, e) =>
             {
@@ -285,7 +277,7 @@ namespace FACTicket_Scanner
                     dlg.Close();
                     return;
                 }
-                lblContador.Text = $"Se autoconfirmará en {restantes}s...";
+                lblContador.Actualizar($"Se autoconfirmará en {restantes}s...", restantes);
             };
             dlg.Shown += (s, e) => timer.Start();
             btnSi.Click += (s, e) => timer.Stop();
@@ -296,7 +288,7 @@ namespace FACTicket_Scanner
             {
                 if (!timer.Enabled) return;
                 timer.Stop();
-                lblContador.Text = "Cuenta atrás cancelada.";
+                lblContador.Detener("Cuenta atrás cancelada.");
             }
             dlg.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) CancelarCuentaAtras(); };
             dlg.MouseDown += (s, e) => { if (e.Button == MouseButtons.Right) CancelarCuentaAtras(); };
@@ -318,7 +310,10 @@ namespace FACTicket_Scanner
                 };
             }
 
-            bool resultado = dlg.ShowDialog() == DialogResult.Yes;
+            // Primero la app al frente (maximizada si estaba minimizada o detrás de otra), luego este diálogo encima
+            Form? principal = traerAlFrente ? VentanaHelper.TraerPrincipalAlFrente() : null;
+            if (traerAlFrente) dlg.Shown += (s, e) => VentanaHelper.TraerAlFrente(dlg, maximizar: false);
+            bool resultado = (principal != null ? dlg.ShowDialog(principal) : dlg.ShowDialog()) == DialogResult.Yes;
 
             // Libera los bitmaps creados para la vista previa
             bmpExistente?.Dispose();
@@ -354,15 +349,8 @@ namespace FACTicket_Scanner
                 MaximumSize = new System.Drawing.Size(380, 0),
                 Font = new System.Drawing.Font(dlg.Font.FontFamily, 9.5f)
             };
-            var lblContador = new Label
-            {
-                Left = 15,
-                Width = 380,
-                ForeColor = System.Drawing.Color.DimGray,
-                Font = new System.Drawing.Font(dlg.Font, System.Drawing.FontStyle.Bold),
-                AutoSize = false,
-                Height = 20
-            };
+            // Cuenta atrás visual: fuente grande y parpadeo (más rápido y rojo al final)
+            var lblContador = new CuentaAtrasVisual { Left = 15, Width = 330 };
             var btnOk = new Button { Text = "Aceptar", Width = 100, Height = 34, DialogResult = DialogResult.OK };
             var btnX2 = new Button { Text = "✕", Width = 24, Height = 24, FlatStyle = FlatStyle.Flat };
             dlg.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnOk, btnX2 });
@@ -372,13 +360,13 @@ namespace FACTicket_Scanner
             // ajusta el alto del diálogo para que quepa siempre completo.
             int yTrasMensaje = lblMensaje.Bottom + 12;
             lblContador.Top = yTrasMensaje;
-            int yBoton = yTrasMensaje + 30;
-            btnX2.Location = new System.Drawing.Point(350, yTrasMensaje - 2);
+            int yBoton = yTrasMensaje + 48;
+            btnX2.Location = new System.Drawing.Point(350, yTrasMensaje + 8);
             btnOk.Location = new System.Drawing.Point(150, yBoton);
             dlg.ClientSize = new System.Drawing.Size(dlg.ClientSize.Width, yBoton + 34 + 15);
 
             int restantes = segundos;
-            lblContador.Text = $"Se cerrará en {restantes}s...";
+            lblContador.Actualizar($"Se cerrará en {restantes}s...", restantes);
             using var timer = new Timer { Interval = 1000 };
             timer.Tick += (s, e) =>
             {
@@ -390,7 +378,7 @@ namespace FACTicket_Scanner
                     dlg.Close();
                     return;
                 }
-                lblContador.Text = $"Se cerrará en {restantes}s...";
+                lblContador.Actualizar($"Se cerrará en {restantes}s...", restantes);
             };
             dlg.Shown += (s, e) => timer.Start();
             btnOk.Click += (s, e) => timer.Stop();
@@ -401,7 +389,7 @@ namespace FACTicket_Scanner
             {
                 if (!timer.Enabled) return;
                 timer.Stop();
-                lblContador.Text = "Cuenta atrás cancelada.";
+                lblContador.Detener("Cuenta atrás cancelada.");
             }
             dlg.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) CancelarCuentaAtras(); };
             dlg.MouseDown += (s, e) => { if (e.Button == MouseButtons.Right) CancelarCuentaAtras(); };

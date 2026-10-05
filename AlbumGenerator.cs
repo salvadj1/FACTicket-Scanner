@@ -289,7 +289,7 @@ namespace FACTicket_Scanner
 
             return DialogoAutoConfirmar.Confirmar(
                 $"Parece que esta factura ya se guardó anteriormente:\n\n{resumen}\n\n¿Quieres continuar y guardarla de nuevo?",
-                "Posible factura duplicada", resultadoPorDefecto: false);
+                "Posible factura duplicada", resultadoPorDefecto: false, traerAlFrente: true);
         }
 
         // -----------------------------------------------------------------------
