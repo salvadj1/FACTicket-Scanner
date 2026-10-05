@@ -113,12 +113,16 @@ namespace FACTicket_Scanner
         //   titulo               : título de la ventana.
         //   resultadoPorDefecto  : valor devuelto si se agota la cuenta atrás.
         //   segundos             : duración de la cuenta atrás (30 por defecto).
+        //   log                  : (opcional) datos de la comparación. Si se indica, se
+        //                          muestra un log organizado junto al mensaje y aparece el
+        //                          botón "Exportar log (.txt)" (usa ExportadorArchivos).
         // Devuelve true si el usuario elige "Sí" (continuar), false en caso contrario.
         // Reutilizable en cualquier proyecto con OpenCvSharp (solo depende de
         // ImageProcessor.MatToBitmap para convertir la imagen nueva).
         // -----------------------------------------------------------------------
         public static bool ConfirmarDuplicadoConVistaPrevia(OpenCvSharp.Mat imagenNueva, string? rutaImagenExistente,
-            string mensaje, string titulo, bool resultadoPorDefecto, int segundos = 30)
+            string mensaje, string titulo, bool resultadoPorDefecto, int segundos = 30,
+            LogComparacionDuplicado? log = null)
         {
             // Convierte a Bitmap sin bloquear el archivo en disco
             System.Drawing.Bitmap? bmpExistente = null;
@@ -133,6 +137,14 @@ namespace FACTicket_Scanner
                 catch { bmpExistente = null; }
             }
             System.Drawing.Bitmap bmpNueva = ImageProcessor.MatToBitmap(imagenNueva);
+
+            // Completa el log con lo que solo se sabe aquí (¿se pudo cargar la original? tamaños)
+            if (log != null)
+            {
+                log.RutaImagenExistente = rutaImagenExistente ?? "";
+                log.ImagenExistenteCargada = bmpExistente != null;
+                if (bmpExistente != null) { log.AnchoExistente = bmpExistente.Width; log.AltoExistente = bmpExistente.Height; }
+            }
 
             // Ventana grande: ocupa el 90% del área de trabajo
             var area = Screen.PrimaryScreen?.WorkingArea ?? new System.Drawing.Rectangle(0, 0, 1280, 800);
@@ -150,7 +162,7 @@ namespace FACTicket_Scanner
             };
 
             // --- Zona inferior: mensaje, contador y botones ---
-            var panelInferior = new Panel { Dock = DockStyle.Bottom, Height = 190 };
+            var panelInferior = new Panel { Dock = DockStyle.Bottom, Height = log != null ? 270 : 190 };
             var lblMensaje = new Label
             {
                 Text = mensaje,
@@ -173,12 +185,50 @@ namespace FACTicket_Scanner
             var btnSi = new Button { Text = "Sí, continuar", Width = 140, Height = 34, DialogResult = DialogResult.Yes, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
             var btnNo = new Button { Text = "No, descartar", Width = 140, Height = 34, DialogResult = DialogResult.No, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
             panelInferior.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnSi, btnNo });
+
+            // Log de comparación (solo si se proporciona): cuadro de texto de solo lectura
+            // con fuente monoespaciada (alinea hashes y marcas) + botón de exportación.
+            TextBox? txtLog = null;
+            Button? btnExportar = null;
+            if (log != null)
+            {
+                txtLog = new TextBox
+                {
+                    Multiline = true,
+                    ReadOnly = true,
+                    ScrollBars = ScrollBars.Both,
+                    WordWrap = false,
+                    Font = new System.Drawing.Font("Consolas", 8.5f),
+                    BackColor = System.Drawing.Color.White,
+                    Text = log.Construir()
+                };
+                btnExportar = new Button { Text = "📄 Exportar log (.txt)", Width = 170, Height = 34 };
+                panelInferior.Controls.AddRange(new Control[] { txtLog, btnExportar });
+                lblMensaje.Height = 130;
+                lblContador.Top = 142;
+            }
+
             // Reposiciona botones (esquina inferior derecha) y ajusta el ancho del mensaje
             void Reposicionar()
             {
                 btnNo.Location = new System.Drawing.Point(panelInferior.ClientSize.Width - btnNo.Width - 15, panelInferior.Height - btnNo.Height - 15);
                 btnSi.Location = new System.Drawing.Point(btnNo.Left - btnSi.Width - 10, btnNo.Top);
-                lblMensaje.Width = Math.Max(200, btnSi.Left - 30);
+                if (txtLog != null && btnExportar != null)
+                {
+                    // Izquierda: resumen + contador (38 %). Derecha: log, con el botón
+                    // de exportar justo debajo y alineado a la izquierda del log.
+                    lblMensaje.Width = Math.Max(200, (int)(panelInferior.ClientSize.Width * 0.38));
+                    int xLog = lblMensaje.Right + 15;
+                    btnExportar.Location = new System.Drawing.Point(xLog, btnNo.Top);
+                    txtLog.Location = new System.Drawing.Point(xLog, 8);
+                    txtLog.Size = new System.Drawing.Size(
+                        Math.Max(200, panelInferior.ClientSize.Width - xLog - 15),
+                        Math.Max(60, btnNo.Top - 8 - 8));
+                }
+                else
+                {
+                    lblMensaje.Width = Math.Max(200, btnSi.Left - 30);
+                }
             }
             panelInferior.Resize += (s, e) => Reposicionar();
             dlg.AcceptButton = resultadoPorDefecto ? btnSi : btnNo;
@@ -252,6 +302,21 @@ namespace FACTicket_Scanner
             dlg.MouseDown += (s, e) => { if (e.Button == MouseButtons.Right) CancelarCuentaAtras(); };
             tabla.MouseDown += (s, e) => { if (e.Button == MouseButtons.Right) CancelarCuentaAtras(); };
             foreach (Control c in tabla.Controls) c.MouseDown += (s, e) => { if (e.Button == MouseButtons.Right) CancelarCuentaAtras(); };
+
+            // Exportar log: detiene la cuenta atrás (para que el diálogo no se cierre
+            // mientras se elige dónde guardar) y vuelca el log a un .txt.
+            if (btnExportar != null && log != null)
+            {
+                btnExportar.Click += (s, e) =>
+                {
+                    CancelarCuentaAtras();
+                    string nombre = $"LogDuplicado_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                    string? guardado = ExportadorArchivos.GuardarTextoConDialogo(
+                        dlg, nombre, log.Construir(), "Archivo de texto (*.txt)|*.txt");
+                    if (guardado != null)
+                        lblContador.Text = "Log exportado: " + System.IO.Path.GetFileName(guardado);
+                };
+            }
 
             bool resultado = dlg.ShowDialog() == DialogResult.Yes;
 

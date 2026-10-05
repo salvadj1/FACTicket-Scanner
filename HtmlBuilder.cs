@@ -89,6 +89,7 @@ namespace FACTicket_Scanner
       <div id=""tabs-tipo"">
         <button class=""tab-tipo activo"" onclick=""cambiarTipo('facturas',this)"">📄 Facturas</button>
         <button class=""tab-tipo"" onclick=""cambiarTipo('albaranes',this)"">📦 Albaranes</button>
+        <button class=""tab-tipo"" onclick=""cambiarTipo('articulos',this)"">🛒 Artículos</button>
       </div>
       <input type=""text"" id=""buscar"" placeholder=""🔍 Buscar empresa, número, CIF, fecha..."" oninput=""filtrar()"">
       <div id=""controles-fila2"">
@@ -96,18 +97,25 @@ namespace FACTicket_Scanner
           <label>Vista</label>
           <div id=""btns-vista"">
             <button class=""btn-vista"" onclick=""recargarPanel()"" title=""Actualizar / recargar panel"">⟳</button>
-            <button class=""btn-vista activo"" onclick=""setVista('empresa',this)"" title=""Por empresa"">🏢</button>
-            <button class=""btn-vista"" onclick=""setVista('total_desc',this)"" title=""Mayor importe"">💰↓</button>
-            <button class=""btn-vista"" onclick=""setVista('total_asc',this)"" title=""Menor importe"">💰↑</button>
-            <button class=""btn-vista"" onclick=""setVista('fecha_desc',this)"" title=""Más recientes"">📅↓</button>
-            <button class=""btn-vista"" onclick=""setVista('fecha_asc',this)"" title=""Más antiguos"">📅↑</button>
-            <button class=""btn-vista"" onclick=""setVista('guardado_desc',this)"" title=""Últimas añadidas"">🕒</button>
-            <button class=""btn-vista"" onclick=""setVista('lista',this)"" title=""Vista lista"">☰</button>
+            <button class=""btn-vista solo-docs activo"" data-vista=""empresa"" onclick=""setVista('empresa',this)"" title=""Por empresa"">🏢</button>
+            <button class=""btn-vista solo-docs"" data-vista=""guardado_desc"" onclick=""setVista('guardado_desc',this)"" title=""Últimas añadidas"">🕒</button>
+            <button class=""btn-vista solo-docs"" id=""btnAvanzado"" onclick=""toggleAvanzado()"" title=""Filtros avanzados"">⚙<span id=""nbAvanzado"" class=""nb""></span></button>
+            <span class=""menu-exp"">
+              <button class=""btn-vista"" onclick=""toggleMenuExportar(event)"" title=""Exportar lo mostrado"">📤 ▾</button>
+              <div id=""menuExportar"" class=""dd-exp"">
+                <div onclick=""exportar('csv')"">📄 CSV (Excel ES)</div>
+                <div onclick=""exportar('xls')"">📗 Excel (.xls)</div>
+                <div onclick=""exportar('json')"">🧩 JSON</div>
+                <div onclick=""exportar('html')"">🌐 Informe HTML</div>
+                <div onclick=""exportar('pdf')"">📕 PDF (imprimir)</div>
+              </div>
+            </span>
           </div>
         </div>
-        <div class=""ctrl-grupo"">
+        <div class=""ctrl-grupo solo-docs"">
           <label>Tamaño</label>
-          <input type=""range"" id=""sliderMiniatura"" min=""80"" max=""400"" step=""5"" value=""120"" oninput=""ajustarTamanoMiniatura(this.value)"">
+          <input type=""range"" id=""sliderMiniatura"" min=""60"" max=""400"" step=""5"" value=""120"" oninput=""ajustarTamanoMiniatura(this.value)"" title=""Mínimo = vista lista"">
+          <span id=""lblTam""></span>
         </div>
         <div class=""ctrl-grupo"">
           <label>Año</label>
@@ -128,6 +136,78 @@ namespace FACTicket_Scanner
           <select id=""filtroEmpresa"" onchange=""filtrar()""><option value="""">Todas</option></select>
         </div>
         <span id=""contador""></span>
+      </div>
+
+      <!-- Filtros avanzados (botón ⚙) -->
+      <div id=""panel-avanzado"" style=""display:none"">
+        <div class=""av-g""><label>Fecha documento desde</label><input type=""date"" id=""avFechaDesde"" onchange=""filtrar()""></div>
+        <div class=""av-g""><label>Fecha documento hasta</label><input type=""date"" id=""avFechaHasta"" onchange=""filtrar()""></div>
+        <div class=""av-g""><label>Factura añadida</label>
+          <select id=""avAddPreset"" onchange=""aplicarPresetAnadida()"">
+            <option value="""">Cualquier momento</option>
+            <option value=""hoy"">Hoy</option>
+            <option value=""7"">Últimos 7 días</option>
+            <option value=""30"">Últimos 30 días</option>
+            <option value=""mes"">Este mes</option>
+            <option value=""rango"">Rango personalizado…</option>
+          </select></div>
+        <div class=""av-g""><label>Añadida desde</label><input type=""date"" id=""avAddDesde"" onchange=""rangoAnadidaManual()""></div>
+        <div class=""av-g""><label>Añadida hasta</label><input type=""date"" id=""avAddHasta"" onchange=""rangoAnadidaManual()""></div>
+        <div class=""av-g""><label>Importe mín. (€)</label><input type=""number"" id=""avImpMin"" step=""0.01"" oninput=""filtrar()""></div>
+        <div class=""av-g""><label>Importe máx. (€)</label><input type=""number"" id=""avImpMax"" step=""0.01"" oninput=""filtrar()""></div>
+        <div class=""av-g""><label>IVA</label><select id=""avIva"" onchange=""filtrar()""><option value="""">Todos</option></select></div>
+        <div class=""av-g""><label>Método de pago</label><select id=""avPago"" onchange=""filtrar()""><option value="""">Todos</option></select></div>
+        <div class=""av-g""><label>Presentada</label><select id=""avPres"" onchange=""filtrar()""><option value="""">Todas</option></select></div>
+        <div class=""av-g""><label>Ordenar por</label>
+          <select id=""avOrden"" onchange=""filtrar()"">
+            <option value="""">Por defecto</option>
+            <option value=""fecha_desc"">Fecha documento ↓ (más recientes)</option>
+            <option value=""fecha_asc"">Fecha documento ↑ (más antiguos)</option>
+            <option value=""total_desc"">Importe ↓ (mayor)</option>
+            <option value=""total_asc"">Importe ↑ (menor)</option>
+            <option value=""guardado_desc"">Añadida ↓ (últimas)</option>
+            <option value=""guardado_asc"">Añadida ↑ (primeras)</option>
+          </select></div>
+        <div class=""av-g av-emp""><label>Empresas (varias)</label><div id=""avEmpresas"" class=""av-emps""></div></div>
+      </div>
+
+      <!-- Filtros activos + vistas guardadas -->
+      <div id=""fila-chips"" class=""solo-docs"">
+        <span id=""chipsActivos""></span>
+        <span class=""ctrl-grupo""><label>Vistas guardadas</label>
+          <select id=""selVistas"" onchange=""cargarVistaGuardada(this.value)""><option value="""">— elegir —</option></select></span>
+        <button class=""chip"" onclick=""guardarVistaActual()"" title=""Guarda búsqueda y filtros actuales con un nombre"">💾 Guardar vista</button>
+        <button class=""chip"" id=""btnBorrarVista"" onclick=""borrarVistaGuardada()"" style=""display:none"" title=""Borrar la vista elegida"">🗑</button>
+        <button class=""chip"" id=""btnLimpiar"" onclick=""limpiarAvanzado()"" style=""display:none"">✕ Limpiar filtros avanzados</button>
+      </div>
+
+      <!-- Filtros propios del listado de artículos -->
+      <div id=""fila-art"">
+        <span class=""ctrl-grupo""><label>Variación</label>
+          <select id=""artVar"" onchange=""filtrar()"">
+            <option value="""">Todas</option>
+            <option value=""sube"">Solo suben ▲</option>
+            <option value=""baja"">Solo bajan ▼</option>
+            <option value=""igual"">Sin cambios</option>
+          </select></span>
+        <span class=""ctrl-grupo""><label>Cambio mínimo %</label>
+          <input type=""number"" id=""artPct"" min=""0"" step=""1"" value=""0"" style=""width:70px"" oninput=""filtrar()""></span>
+        <span class=""ctrl-grupo""><label>Registros</label>
+          <select id=""artMin"" onchange=""filtrar()"">
+            <option value=""1"">1+ (todos)</option>
+            <option value=""2"">2+ (comparables)</option>
+            <option value=""3"">3+</option>
+            <option value=""5"">5+</option>
+          </select></span>
+        <span class=""ctrl-grupo""><label>Ordenar</label>
+          <select id=""artOrden"" onchange=""filtrar()"">
+            <option value=""alfa"">Nombre A-Z</option>
+            <option value=""sube"">Mayor subida</option>
+            <option value=""baja"">Mayor bajada</option>
+            <option value=""regs"">Más registros</option>
+            <option value=""gasto"">Mayor gasto</option>
+            <option value=""reciente"">Último registro</option>
+          </select></span>
       </div>
     </div>
 
@@ -410,6 +490,64 @@ table.items tr:hover td{background:#f8f9fa;}
 .hist-item{display:flex;justify-content:space-between;gap:8px;font-size:.76em;
   padding:3px 6px;border-radius:4px;cursor:pointer;}
 .hist-item:hover{background:var(--azul-s);color:var(--azul);}
+
+.btn-vista{position:relative;}
+/* ── Listado: filtros avanzados, vistas guardadas, exportar y artículos ── */
+.btn-vista .nb{position:absolute;top:-7px;right:-7px;background:var(--rojo);color:#fff;border-radius:10px;font-size:.72em;padding:0 5px;display:none;}
+#controles.modo-art .solo-docs{display:none !important;}
+#fila-art{display:none;flex-wrap:wrap;gap:12px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--borde);}
+#controles.modo-art #fila-art{display:flex;}
+#controles.modo-art #panel-avanzado{display:none !important;}
+#fila-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--borde);}
+.chip{padding:4px 11px;border:1px solid var(--borde);border-radius:20px;background:#fff;cursor:pointer;font-size:.78em;font-family:inherit;}
+.chip:hover{border-color:var(--azul);background:var(--azul-s);}
+.cx-act{display:inline-flex;gap:5px;align-items:center;background:var(--azul-s);color:var(--azul);border-radius:20px;padding:3px 6px 3px 11px;font-size:.78em;margin-right:6px;}
+.cx-act button{border:none;background:none;color:var(--azul);cursor:pointer;font-size:1em;}
+#panel-avanzado{margin-top:8px;padding:12px;background:#f8f9fa;border:1px solid var(--borde);border-radius:10px;
+  grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;}
+.av-g{display:flex;flex-direction:column;gap:4px;}
+.av-g label{font-size:.72em;color:var(--gris);}
+.av-g input,.av-g select{padding:5px 8px;border:1px solid var(--borde);border-radius:6px;font-size:.82em;background:#fff;width:100%;font-family:inherit;}
+.av-emps{max-height:110px;overflow:auto;background:#fff;border:1px solid var(--borde);border-radius:6px;padding:4px 8px;}
+.av-emps label{display:flex;gap:6px;font-size:.8em;color:#202124;padding:1px 0;align-items:center;}
+.av-emps input{width:auto;}
+#lblTam{font-size:.75em;color:var(--gris);min-width:48px;}
+.menu-exp{position:relative;display:inline-block;}
+.dd-exp{display:none;position:absolute;left:0;top:110%;background:#fff;border:1px solid var(--borde);border-radius:10px;min-width:190px;z-index:30;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;}
+.dd-exp.abierto{display:block;}
+.dd-exp div{padding:7px 10px;cursor:pointer;border-radius:6px;font-size:.85em;}
+.dd-exp div:hover{background:var(--azul-s);}
+/* Artículos */
+.art-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:12px;}
+.art-kpi{background:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.art-kpi b{display:block;font-size:1em;margin-top:2px;}
+.art-kpi span{font-size:.72em;color:var(--gris);}
+.wrapx{overflow-x:auto;background:#fff;border-radius:0 0 10px 10px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+table.arts{width:100%;border-collapse:collapse;font-size:.82em;}
+table.arts th{background:#f5f7fa;padding:8px 10px;text-align:left;font-size:.85em;white-space:nowrap;}
+table.arts td{padding:7px 10px;border-top:1px solid #f0f0f0;white-space:nowrap;}
+table.arts td.n,table.arts th.n{text-align:right;}
+tr.art-fila{cursor:pointer;}
+tr.art-fila:hover td{background:var(--azul-s);}
+tr.art-hist td{background:#fafbfc;white-space:normal;}
+.var{font-weight:700;white-space:nowrap;margin-left:4px;}
+.var.sube{color:var(--rojo);}
+.var.baja{color:var(--verde);}
+.var.igual{color:var(--gris);}
+.art-panel{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;}
+.art-lista{flex:1;min-width:300px;max-height:170px;overflow-y:auto;}
+.art-reg{display:grid;grid-template-columns:90px 1fr 60px 90px 80px 80px;gap:8px;font-size:.78em;padding:3px 6px;border-radius:4px;cursor:pointer;}
+.art-reg:hover{background:var(--azul-s);}
+.art-reg.cab{font-weight:700;color:var(--gris);cursor:default;position:sticky;top:0;background:#fafbfc;}
+.art-reg.cab:hover{background:#fafbfc;}
+.art-otras{font-size:.78em;color:#444;min-width:200px;}
+.art-otras b{display:block;margin-bottom:3px;color:var(--gris);}
+@media print{
+  html,body{height:auto !important;overflow:visible !important;}
+  #panel-izq,#controles,#modal{display:none !important;}
+  #layout{display:block;height:auto;overflow:visible;}
+  #panel-der,#listado{overflow:visible !important;height:auto !important;}
+}
 ";
 
         private static string Js() => @"
@@ -469,12 +607,17 @@ function resetSelectores(){
   document.getElementById('anioSel').innerHTML='';
   document.getElementById('buscar').value='';
   filtroEspecial=null;
+  limpiarAvanzado(true);
 }
 function cambiarTipo(tipo, btn){
   if(tipo===tipoActual) return;
   tipoActual=tipo;
-  tickets = tipo==='albaranes' ? albaranesData : facturasData;
-  empresasCarpetas = tipo==='albaranes' ? empresasCarpetasAlbaranes : empresasCarpetasFacturas;
+  // 'articulos' trabaja sobre facturas + albaranes juntos (precios comparables entre ambos)
+  tickets = tipo==='albaranes' ? albaranesData : tipo==='articulos' ? facturasData.concat(albaranesData) : facturasData;
+  empresasCarpetas = tipo==='albaranes' ? empresasCarpetasAlbaranes
+    : tipo==='articulos' ? [...new Set(empresasCarpetasFacturas.concat(empresasCarpetasAlbaranes))]
+    : empresasCarpetasFacturas;
+  document.getElementById('controles').classList.toggle('modo-art', tipo==='articulos');
   document.querySelectorAll('.tab-tipo').forEach(b=>b.classList.remove('activo'));
   if(btn) btn.classList.add('activo');
   resetSelectores();
@@ -496,6 +639,7 @@ function poblarFiltros(){
   anios.forEach(a=>{ const o=document.createElement('option'); o.value=o.textContent=a; sa.appendChild(o); });
   const se = document.getElementById('filtroEmpresa');
   empresas.forEach(e=>{ const o=document.createElement('option'); o.value=o.textContent=e; se.appendChild(o); });
+  poblarAvanzado();
 }
 
 /* ─── Stats ─── */
@@ -661,8 +805,10 @@ function recargarPanel(){
 /* ─── Vista ─── */
 function setVista(v, btn){
   vistaActual=v;
-  document.querySelectorAll('.btn-vista').forEach(b=>b.classList.remove('activo'));
+  document.querySelectorAll('.btn-vista[data-vista]').forEach(b=>b.classList.remove('activo'));
   btn.classList.add('activo');
+  // En modo lista (slider al mínimo) estas vistas ordenan la tabla por columna
+  if(modoLista){ ordenListaCol = v==='guardado_desc' ? 'guardado' : 'empresa'; ordenListaAsc = v!=='guardado_desc'; }
   renderizar(listaFiltrada);
 }
 
@@ -670,9 +816,18 @@ function setVista(v, btn){
 // aproximada 1.45:1, la misma que ya tenían las tarjetas a 160x110).
 function ajustarTamanoMiniatura(anchoPx){
   const w = parseInt(anchoPx, 10);
-  const h = Math.round(w / 1.45);
-  document.documentElement.style.setProperty('--mini-w', w+'px');
-  document.documentElement.style.setProperty('--mini-h', h+'px');
+  const lista = w <= SLIDER_LISTA;   // slider al mínimo = vista lista
+  if(!lista){
+    const h = Math.round(w / 1.45);
+    document.documentElement.style.setProperty('--mini-w', w+'px');
+    document.documentElement.style.setProperty('--mini-h', h+'px');
+  }
+  document.getElementById('lblTam').textContent = lista ? '☰ Lista' : w+'px';
+  if(lista !== modoLista){
+    modoLista = lista;
+    if(lista && vistaActual==='guardado_desc'){ ordenListaCol='guardado'; ordenListaAsc=false; }
+    renderizar(listaFiltrada);
+  }
 }
 
 /* ─── Filtrar ─Búsqueda por varias palabras clave separadas por comas: coincide si
@@ -699,9 +854,10 @@ function filtrar(){
     const okEsp = !filtroEspecial
       || (filtroEspecial==='sinTotal' && (!t.total||num(t.total)===0))
       || (filtroEspecial==='sinFecha' && mesFecha(t)===0);
-    return okQ && okA && okT && okE && okEsp;
+    return okQ && okA && okT && okE && okEsp && pasaAvanzado(t);
   });
   document.getElementById('contador').textContent = listaFiltrada.length+' resultado(s)';
+  actualizarChips();
   renderStats(listaFiltrada);
   dibujarTopEmpresas(listaFiltrada);
   dibujarIvaTrimestral();
@@ -713,15 +869,12 @@ function renderizar(lista){
   const c=document.getElementById('contenido');
   if(!lista.length){ c.innerHTML='<div id=""vacio"">No se encontraron documentos.</div>'; return; }
 
-  if(vistaActual==='lista'){ renderLista(lista,c); return; }
+  if(tipoActual==='articulos'){ renderArticulos(lista,c); return; }
+  if(modoLista){ renderLista(lista,c); return; }
 
-  // Ordenar / agrupar
+  // Ordenar (selector ""Ordenar por"" de filtros avanzados) / agrupar
   let items=[...lista];
-  if(vistaActual==='total_desc') items.sort((a,b)=>num(b.total)-num(a.total));
-  else if(vistaActual==='total_asc') items.sort((a,b)=>num(a.total)-num(b.total));
-  else if(vistaActual==='fecha_desc') items.sort((a,b)=>isoFecha(b).localeCompare(isoFecha(a)));
-  else if(vistaActual==='fecha_asc') items.sort((a,b)=>isoFecha(a).localeCompare(isoFecha(b)));
-  else if(vistaActual==='guardado_desc') items.sort((a,b)=>(b.fecha_guardado||'').localeCompare(a.fecha_guardado||''));
+  ordenarItems(items);
 
   if(vistaActual==='empresa'){
     // Agrupar por empresa
@@ -778,7 +931,8 @@ function ordenarLista(col){
 }
 function renderLista(lista,c){
   listaFiltrada=lista;
-  let ordenada=lista;
+  let ordenada=[...lista];
+  if(!ordenListaCol) ordenarItems(ordenada);
   if(ordenListaCol){
     const getters={
       empresa:t=>(t.empresa||'').toLowerCase(),
@@ -1017,10 +1171,389 @@ document.addEventListener('keydown',function(e){
 function fi(l,v){ if(!v||v.toString().trim()==='') return ''; return `<div class=""fila""><span class=""e"">${l}</span><span class=""v"">${v}</span></div>`; }
 function sec(t){ return `<div class=""seccion"">${t}</div>`; }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Listado: filtros avanzados · vistas guardadas · exportación · artículos
+   ═══════════════════════════════════════════════════════════════════════ */
+const $id = id => document.getElementById(id);
+const SLIDER_LISTA = 60;          // valor mínimo del slider = vista lista
+let modoLista = false;            // true cuando el slider está al mínimo
+let empresasSel = [];             // empresas marcadas en filtros avanzados (vacío = todas)
+let vistasGuardadas = [];
+const CLAVE_VISTAS = 'facticket_vistas_v1';
+const IDS_AV = ['avFechaDesde','avFechaHasta','avAddPreset','avAddDesde','avAddHasta','avImpMin','avImpMax','avIva','avPago','avPres','avOrden'];
+const IDS_BASE = ['buscar','filtroAnio','filtroTrimestre','filtroEmpresa'];
+
+// Fecha en cualquier formato habitual -> 'yyyy-mm-dd' (o '' si no se reconoce).
+function fechaCompleta(str){
+  if(!str) return '';
+  str=str.toString().trim();
+  let m=str.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+  if(m) return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+  m=str.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+  if(m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  m=str.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2})$/);
+  if(m) return '20'+m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  return '';
+}
+function isoLocal(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+/* ─── Panel de filtros avanzados ─── */
+function toggleAvanzado(){
+  const p=$id('panel-avanzado');
+  const abierto=p.style.display!=='none';
+  p.style.display=abierto?'none':'grid';
+  $id('btnAvanzado').classList.toggle('activo',!abierto);
+}
+// Rellena los desplegables del panel con los valores reales del conjunto actual.
+function poblarAvanzado(){
+  const vals=f=>[...new Set(tickets.map(f).filter(v=>v!==''&&v!==undefined&&v!==null))];
+  const ivas=vals(t=>t.iva_porcentaje>0?String(t.iva_porcentaje):'').sort((a,b)=>a-b);
+  $id('avIva').innerHTML='<option value="""">Todos</option>'+ivas.map(v=>`<option value=""${v}"">${v}%</option>`).join('');
+  const pagos=vals(t=>(t.metodo_pago||'').trim()).sort();
+  $id('avPago').innerHTML='<option value="""">Todos</option>'+pagos.map(v=>`<option>${v}</option>`).join('');
+  // Presentada: Todas / Sí / No / cada trimestre con su color (el mismo de las tarjetas)
+  const trims=vals(t=>t.presentado?(t.trimestre_presentado||''):'').sort();
+  $id('avPres').innerHTML='<option value="""">Todas</option><option value=""si"">Sí (cualquier trimestre)</option><option value=""no"">No presentadas</option>'
+    +trims.map(v=>`<option value=""${v}"" style=""color:${colorTrimestre(v)||'inherit'}"">■ Presentada en ${v}</option>`).join('');
+  const emps=(empresasCarpetas&&empresasCarpetas.length)?[...empresasCarpetas].sort():[...new Set(tickets.map(empresaCarpeta))].sort();
+  $id('avEmpresas').innerHTML=emps.map(e=>`<label><input type=""checkbox"" value=""${e.replace(/""/g,'&quot;')}"" onchange=""toggleEmpresaSel(this)""> ${e}</label>`).join('');
+}
+function toggleEmpresaSel(cb){
+  empresasSel = cb.checked ? [...empresasSel, cb.value] : empresasSel.filter(x=>x!==cb.value);
+  filtrar();
+}
+// ""Factura añadida"": atajos de fecha de guardado (hoy, 7 días, 30 días, este mes).
+function aplicarPresetAnadida(){
+  const p=$id('avAddPreset').value, hoy=new Date();
+  let d1='', d2='';
+  if(p==='hoy'){ d1=d2=isoLocal(hoy); }
+  else if(p==='7'||p==='30'){ const ini=new Date(hoy); ini.setDate(ini.getDate()-parseInt(p,10)); d1=isoLocal(ini); d2=isoLocal(hoy); }
+  else if(p==='mes'){ d1=isoLocal(new Date(hoy.getFullYear(),hoy.getMonth(),1)); d2=isoLocal(hoy); }
+  if(p!=='rango'){ $id('avAddDesde').value=d1; $id('avAddHasta').value=d2; }
+  filtrar();
+}
+function rangoAnadidaManual(){
+  $id('avAddPreset').value = ($id('avAddDesde').value||$id('avAddHasta').value) ? 'rango' : '';
+  filtrar();
+}
+// Devuelve true si el documento cumple TODOS los filtros avanzados activos.
+function pasaAvanzado(t){
+  const fd1=$id('avFechaDesde').value, fd2=$id('avFechaHasta').value;
+  if(fd1||fd2){
+    const f=fechaCompleta(t.fecha);
+    if(!f || (fd1&&f<fd1) || (fd2&&f>fd2)) return false;
+  }
+  const ad1=$id('avAddDesde').value, ad2=$id('avAddHasta').value;
+  if(ad1||ad2){
+    const g=(t.fecha_guardado||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(g) || (ad1&&g<ad1) || (ad2&&g>ad2)) return false;
+  }
+  const imn=$id('avImpMin').value, imx=$id('avImpMax').value;
+  if(imn!==''||imx!==''){
+    const v=num(t.total);
+    if((imn!==''&&v<parseFloat(imn)) || (imx!==''&&v>parseFloat(imx))) return false;
+  }
+  const iva=$id('avIva').value;
+  if(iva!=='' && String(t.iva_porcentaje||0)!==iva) return false;
+  const pago=$id('avPago').value;
+  if(pago && (t.metodo_pago||'').trim()!==pago) return false;
+  const pres=$id('avPres').value;
+  if(pres==='si' && !t.presentado) return false;
+  if(pres==='no' && t.presentado) return false;
+  if(pres && pres!=='si' && pres!=='no' && (!t.presentado || t.trimestre_presentado!==pres)) return false;
+  if(empresasSel.length && !empresasSel.includes(empresaCarpeta(t))) return false;
+  return true;
+}
+function limpiarAvanzado(silencioso){
+  ['avFechaDesde','avFechaHasta','avAddDesde','avAddHasta','avImpMin','avImpMax'].forEach(i=>$id(i).value='');
+  ['avAddPreset','avIva','avPago','avPres','avOrden'].forEach(i=>$id(i).value='');
+  empresasSel=[];
+  document.querySelectorAll('#avEmpresas input').forEach(c=>c.checked=false);
+  if(!silencioso) filtrar();
+}
+/* ─── Chips de filtros activos ─── */
+function filtrosActivos(){
+  const a=[], v=i=>$id(i).value;
+  if(v('avFechaDesde')||v('avFechaHasta')) a.push({k:'fecha',t:'Fecha doc.: '+(v('avFechaDesde')||'…')+' → '+(v('avFechaHasta')||'…')});
+  if(v('avAddDesde')||v('avAddHasta')) a.push({k:'add',t:'Añadida: '+(v('avAddDesde')||'…')+' → '+(v('avAddHasta')||'…')});
+  if(v('avImpMin')!==''||v('avImpMax')!=='') a.push({k:'imp',t:'Importe: '+(v('avImpMin')||'0')+' – '+(v('avImpMax')||'∞')+' €'});
+  if(v('avIva')) a.push({k:'iva',t:'IVA '+v('avIva')+'%'});
+  if(v('avPago')) a.push({k:'pago',t:'Pago: '+v('avPago')});
+  if(v('avPres')){ const x=v('avPres'); a.push({k:'pres',t:x==='si'?'Presentadas':x==='no'?'Sin presentar':'Presentada en '+x}); }
+  if(empresasSel.length) a.push({k:'emps',t:'Empresas: '+empresasSel.length});
+  return a;
+}
+function quitarFiltro(k){
+  if(k==='fecha'){ $id('avFechaDesde').value=''; $id('avFechaHasta').value=''; }
+  else if(k==='add'){ $id('avAddDesde').value=''; $id('avAddHasta').value=''; $id('avAddPreset').value=''; }
+  else if(k==='imp'){ $id('avImpMin').value=''; $id('avImpMax').value=''; }
+  else if(k==='iva') $id('avIva').value='';
+  else if(k==='pago') $id('avPago').value='';
+  else if(k==='pres') $id('avPres').value='';
+  else if(k==='emps'){ empresasSel=[]; document.querySelectorAll('#avEmpresas input').forEach(c=>c.checked=false); }
+  filtrar();
+}
+function actualizarChips(){
+  const a=filtrosActivos();
+  $id('chipsActivos').innerHTML=a.map(f=>`<span class=""cx-act"">${f.t}<button onclick=""quitarFiltro('${f.k}')"" title=""Quitar"">✕</button></span>`).join('');
+  $id('btnLimpiar').style.display=a.length?'':'none';
+  const nb=$id('nbAvanzado');
+  nb.textContent=a.length||''; nb.style.display=a.length?'inline-block':'none';
+}
+
+/* ─── Vistas guardadas (localStorage; si no está disponible, solo en memoria) ─── */
+function leerVistas(){ try{ return JSON.parse(localStorage.getItem(CLAVE_VISTAS)||'[]'); }catch(e){ return vistasGuardadas||[]; } }
+function escribirVistas(v){ vistasGuardadas=v; try{ localStorage.setItem(CLAVE_VISTAS, JSON.stringify(v)); }catch(e){} }
+function cargarVistasGuardadas(){
+  vistasGuardadas=leerVistas();
+  $id('selVistas').innerHTML='<option value="""">— elegir —</option>'+vistasGuardadas.map((v,i)=>`<option value=""${i}"">${v.nombre}</option>`).join('');
+  $id('btnBorrarVista').style.display='none';
+}
+function guardarVistaActual(){
+  const n=(prompt('Nombre de la vista:','')||'').trim();
+  if(!n) return;
+  const o={}; IDS_AV.concat(IDS_BASE).forEach(i=>o[i]=$id(i).value); o.empresasSel=[...empresasSel];
+  const v=leerVistas().filter(x=>x.nombre!==n); v.push({nombre:n,datos:o});
+  escribirVistas(v); cargarVistasGuardadas();
+  $id('selVistas').value=String(v.length-1); $id('btnBorrarVista').style.display='';
+}
+function cargarVistaGuardada(i){
+  $id('btnBorrarVista').style.display = i===''?'none':'';
+  if(i==='') return;
+  const v=vistasGuardadas[parseInt(i,10)]; if(!v) return;
+  IDS_AV.concat(IDS_BASE).forEach(id=>{ const el=$id(id); if(el && v.datos[id]!==undefined) el.value=v.datos[id]; });
+  empresasSel=[...(v.datos.empresasSel||[])];
+  document.querySelectorAll('#avEmpresas input').forEach(c=>c.checked=empresasSel.includes(c.value));
+  filtrar();
+}
+function borrarVistaGuardada(){
+  const i=$id('selVistas').value; if(i==='') return;
+  const v=vistasGuardadas[parseInt(i,10)];
+  if(!v || !confirm('¿Borrar la vista ""'+v.nombre+'""?')) return;
+  escribirVistas(vistasGuardadas.filter((x,j)=>j!==parseInt(i,10)));
+  cargarVistasGuardadas();
+}
+
+/* ─── Orden de las tarjetas (sustituye a los iconos de importe/fecha) ─── */
+function ordenarItems(items){
+  const o=$id('avOrden').value || (vistaActual==='guardado_desc'?'guardado_desc':'');
+  const f={
+    total_desc:(a,b)=>num(b.total)-num(a.total),
+    total_asc:(a,b)=>num(a.total)-num(b.total),
+    fecha_desc:(a,b)=>(fechaCompleta(b.fecha)||'').localeCompare(fechaCompleta(a.fecha)||''),
+    fecha_asc:(a,b)=>(fechaCompleta(a.fecha)||'').localeCompare(fechaCompleta(b.fecha)||''),
+    guardado_desc:(a,b)=>(b.fecha_guardado||'').localeCompare(a.fecha_guardado||''),
+    guardado_asc:(a,b)=>(a.fecha_guardado||'').localeCompare(b.fecha_guardado||'')
+  }[o];
+  if(f) items.sort(f);
+}
+
+/* ─── Exportación de lo mostrado ─── */
+function toggleMenuExportar(ev){ ev.stopPropagation(); $id('menuExportar').classList.toggle('abierto'); }
+function cerrarMenuExportar(){ $id('menuExportar').classList.remove('abierto'); }
+document.addEventListener('click',cerrarMenuExportar);
+
+const COLS_EXP=[
+  ['Empresa',t=>empresaCarpeta(t)],['Fecha',t=>t.fecha||''],['Nº',t=>t.numero||''],['CIF',t=>t.cif||''],
+  ['Tipo',t=>t.tipo_documento||''],['Base',t=>num(t.base)],['IVA %',t=>t.iva_porcentaje||0],['IVA',t=>num(t.iva)],
+  ['Total',t=>num(t.total)],['Pago',t=>t.metodo_pago||''],['Añadida',t=>fmtGuardado(t)],
+  ['Presentada',t=>t.presentado?(t.trimestre_presentado||'Sí'):'No']
+];
+// Devuelve {nombre, cab, filas} con exactamente lo que se ve en pantalla.
+function datosExportacion(){
+  if(tipoActual==='articulos'){
+    const arts=articulosFiltrados();
+    return {nombre:'articulos',
+      cab:['Empresa','Artículo','Registros','Primer precio','Fecha primero','Último precio','Fecha último','Var. desde 1º %','Var. última compra %','Mín.','Máx.','Media','Cantidad','Gasto'],
+      filas:arts.map(({a,st})=>[a.empresa,a.nombre,st.n,st.primero?st.primero.precio:'',st.primero?st.primero.fechaTxt:'',
+        st.ultimo?st.ultimo.precio:'',st.ultimo?st.ultimo.fechaTxt:'',
+        st.varTotal===null?'':Math.round(st.varTotal*10)/10, st.varUltima===null?'':Math.round(st.varUltima*10)/10,
+        st.min,st.max,Math.round(st.media*100)/100,st.cant,Math.round(st.gasto*100)/100])};
+  }
+  const items=[...listaFiltrada]; ordenarItems(items);
+  return {nombre:tipoActual, cab:COLS_EXP.map(c=>c[0]), filas:items.map(t=>COLS_EXP.map(c=>c[1](t)))};
+}
+function celdaCsv(v){
+  let s=typeof v==='number'?String(v).replace('.',','):String(v===null||v===undefined?'':v);
+  if(/[;""\n\r]/.test(s)) s='""'+s.replace(/""/g,'""""')+'""';
+  return s;
+}
+function tablaHtml(d){
+  const esc=s=>String(s===null||s===undefined?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  return '<table border=""1""><thead><tr>'+d.cab.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>'
+    +d.filas.map(r=>'<tr>'+r.map(v=>'<td>'+esc(typeof v==='number'?String(v).replace('.',','):v)+'</td>').join('')+'</tr>').join('')
+    +'</tbody></table>';
+}
+// En la app (WebView2) pide a WinForms el ""Guardar como...""; en un navegador normal descarga un Blob.
+function guardarArchivo(nombre, contenido, mime, filtro){
+  if(window.chrome && window.chrome.webview){
+    window.chrome.webview.postMessage({accion:'guardarArchivo', nombre:nombre, contenido:contenido, filtro:filtro});
+    return;
+  }
+  const blob=new Blob(['\ufeff'+contenido],{type:mime+';charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nombre;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
+}
+function exportar(fmt){
+  cerrarMenuExportar();
+  if(fmt==='pdf'){ window.print(); return; }
+  const d=datosExportacion();
+  if(!d.filas.length){ alert('No hay datos que exportar con los filtros actuales.'); return; }
+  const f=new Date(), p2=n=>String(n).padStart(2,'0');
+  const base='FACTicket_'+d.nombre+'_'+f.getFullYear()+p2(f.getMonth()+1)+p2(f.getDate())+'_'+p2(f.getHours())+p2(f.getMinutes());
+  if(fmt==='csv') guardarArchivo(base+'.csv',[d.cab].concat(d.filas).map(r=>r.map(celdaCsv).join(';')).join('\r\n'),'text/csv','CSV (*.csv)|*.csv');
+  else if(fmt==='json') guardarArchivo(base+'.json',JSON.stringify(d.filas.map(r=>Object.fromEntries(d.cab.map((c,i)=>[c,r[i]]))),null,2),'application/json','JSON (*.json)|*.json');
+  else if(fmt==='xls') guardarArchivo(base+'.xls','<html xmlns:x=""urn:schemas-microsoft-com:office:excel""><head><meta charset=""UTF-8""></head><body>'+tablaHtml(d)+'</body></html>','application/vnd.ms-excel','Excel (*.xls)|*.xls');
+  else if(fmt==='html') guardarArchivo(base+'.html','<!DOCTYPE html><html lang=""es""><head><meta charset=""UTF-8""><title>'+base+'</title><style>body{font-family:Segoe UI,Arial,sans-serif;padding:16px}table{border-collapse:collapse;font-size:13px}th,td{border:1px solid #ccc;padding:4px 8px}th{background:#f5f7fa}</style></head><body><h2>'+base+' · '+d.filas.length+' filas</h2>'+tablaHtml(d)+'</body></html>','text/html','Informe HTML (*.html)|*.html');
+}
+
+/* ─── Listado de artículos por empresa ─── */
+// Clave de comparación: minúsculas, sin tildes y sin espacios repetidos.
+function normArt(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
+function pctVar(n,b){ return b>0 ? (n-b)/b*100 : null; }
+function fmtVar(p){
+  if(p===null||p===undefined||!isFinite(p)) return '<span class=""var igual"">—</span>';
+  const r=Math.round(p*10)/10;
+  if(Math.abs(r)<0.05) return '<span class=""var igual"">0%</span>';
+  return `<span class=""var ${r>0?'sube':'baja'}"">${r>0?'+':'-'}${Math.abs(r).toLocaleString('es-ES',{maximumFractionDigits:1})}%</span>`;
+}
+// Índice de TODO el histórico cargado: (empresa + artículo) -> registros ordenados por fecha.
+function construirArticulos(){
+  const mapa=new Map();
+  tickets.forEach((t,idx)=>{
+    const emp=empresaCarpeta(t);
+    (t.items||[]).forEach(it=>{
+      const k=normArt(it.descripcion); if(!k) return;
+      const precio=num(it.precio_unitario), cant=num(it.cantidad);
+      const clave=emp+'\u0001'+k;
+      let a=mapa.get(clave);
+      if(!a){ a={empresa:emp, clave:k, nombre:(it.descripcion||'').trim(), regs:[]}; mapa.set(clave,a); }
+      a.regs.push({doc:t, idx:idx, fecha:fechaCompleta(t.fecha), guardado:(t.fecha_guardado||''), fechaTxt:t.fecha||'—',
+        numero:t.numero||'—', cant:cant, precio:precio, subtotal:num(it.subtotal)||precio*cant});
+    });
+  });
+  const fk=r=>r.fecha||r.guardado.slice(0,10)||'';
+  mapa.forEach(a=>a.regs.sort((x,y)=>fk(x).localeCompare(fk(y))||x.guardado.localeCompare(y.guardado)));
+  return mapa;
+}
+// Estadísticas: la variación se mide SIEMPRE contra el primer registro histórico,
+// aunque los filtros de año/trimestre limiten qué registros se muestran.
+function estadisticasArticulo(a, per){
+  const conPrecio=a.regs.filter(r=>r.precio>0), pp=per.filter(r=>r.precio>0);
+  const primero=conPrecio[0]||null, ultimo=pp.length?pp[pp.length-1]:null;
+  const i=ultimo?conPrecio.indexOf(ultimo):-1, previo=i>0?conPrecio[i-1]:null;
+  const precios=pp.map(r=>r.precio);
+  return {
+    n:a.regs.length, primero, ultimo,
+    varTotal:(conPrecio.length>=2&&primero&&ultimo)?pctVar(ultimo.precio,primero.precio):null,
+    varUltima:(ultimo&&previo)?pctVar(ultimo.precio,previo.precio):null,
+    min:precios.length?Math.min(...precios):0, max:precios.length?Math.max(...precios):0,
+    media:precios.length?precios.reduce((s,v)=>s+v,0)/precios.length:0,
+    cant:per.reduce((s,r)=>s+r.cant,0), gasto:per.reduce((s,r)=>s+r.subtotal,0)
+  };
+}
+// Artículos que cumplen buscador + filtros de documento + filtros propios de la lista.
+function articulosFiltrados(){
+  const mapa=construirArticulos(); window._artMapa=mapa;
+  const setT=new Set(listaFiltrada);
+  const terminos=($id('buscar').value||'').split(',').map(normArt).filter(Boolean);
+  const fVar=$id('artVar').value, fPct=parseFloat($id('artPct').value)||0, fMin=parseInt($id('artMin').value,10)||1;
+  const out=[];
+  mapa.forEach(a=>{
+    const per=a.regs.filter(r=>setT.has(r.doc));
+    if(!per.length || a.regs.length<fMin) return;
+    if(terminos.length && !terminos.some(q=>a.clave.includes(q)||normArt(a.empresa).includes(q))) return;
+    const st=estadisticasArticulo(a,per), v=st.varTotal;
+    if(fVar==='sube' && !(v!==null&&v>=0.05)) return;
+    if(fVar==='baja' && !(v!==null&&v<=-0.05)) return;
+    if(fVar==='igual' && !(v!==null&&Math.abs(v)<0.05)) return;
+    if(fPct>0 && !(v!==null&&Math.abs(v)>=fPct)) return;
+    out.push({a,st,per});
+  });
+  const ult=x=>x.st.ultimo?(x.st.ultimo.fecha||x.st.ultimo.guardado.slice(0,10)):'';
+  const cmp={
+    alfa:(x,y)=>x.a.nombre.localeCompare(y.a.nombre,'es'),
+    sube:(x,y)=>(y.st.varTotal===null?-1e9:y.st.varTotal)-(x.st.varTotal===null?-1e9:x.st.varTotal),
+    baja:(x,y)=>(x.st.varTotal===null?1e9:x.st.varTotal)-(y.st.varTotal===null?1e9:y.st.varTotal),
+    regs:(x,y)=>y.a.regs.length-x.a.regs.length,
+    gasto:(x,y)=>y.st.gasto-x.st.gasto,
+    reciente:(x,y)=>ult(y).localeCompare(ult(x))
+  }[$id('artOrden').value]||((x,y)=>0);
+  return out.sort(cmp);
+}
+function renderArticulos(lista,c){
+  const arts=articulosFiltrados();
+  $id('contador').textContent=arts.length+' artículo(s)';
+  if(!arts.length){ c.innerHTML='<div id=""vacio"">No se encontraron artículos con estos filtros.</div>'; return; }
+  window._artData={};
+  const suben=arts.filter(x=>x.st.varTotal!==null&&x.st.varTotal>=0.05), bajan=arts.filter(x=>x.st.varTotal!==null&&x.st.varTotal<=-0.05);
+  const mayorSube=[...suben].sort((x,y)=>y.st.varTotal-x.st.varTotal)[0], mayorBaja=[...bajan].sort((x,y)=>x.st.varTotal-y.st.varTotal)[0];
+  const kpi=(l,v)=>`<div class=""art-kpi""><span>${l}</span><b>${v}</b></div>`;
+  let html='<div class=""art-kpis"">'
+    +kpi('Artículos',arts.length)+kpi('Han subido ▲',suben.length)+kpi('Han bajado ▼',bajan.length)
+    +kpi('Mayor subida',mayorSube?mayorSube.a.nombre+' <small>('+mayorSube.a.empresa+')</small> '+fmtVar(mayorSube.st.varTotal):'—')
+    +kpi('Mayor bajada',mayorBaja?mayorBaja.a.nombre+' <small>('+mayorBaja.a.empresa+')</small> '+fmtVar(mayorBaja.st.varTotal):'—')
+    +kpi('Gasto en artículos',eur(arts.reduce((s,x)=>s+x.st.gasto,0)))+'</div>';
+  const grupos={};
+  arts.forEach(x=>(grupos[x.a.empresa]=grupos[x.a.empresa]||[]).push(x));
+  let n=0;
+  html+=Object.keys(grupos).sort().map(emp=>{
+    const g=grupos[emp];
+    const filas=g.map(x=>{
+      const uid='art'+(n++); window._artData[uid]=x; const st=x.st;
+      return `<tr class=""art-fila"" onclick=""toggleArticulo('${uid}')"">
+        <td>${x.a.nombre}</td><td class=""n"">${st.n}</td>
+        <td class=""n"">${st.primero?eur(st.primero.precio):'—'}</td>
+        <td class=""n""><b>${st.ultimo?eur(st.ultimo.precio):'—'}</b>${fmtVar(st.varTotal)}</td>
+        <td class=""n"">${fmtVar(st.varUltima)}</td>
+        <td class=""n"">${st.min?eur(st.min):'—'}</td><td class=""n"">${st.max?eur(st.max):'—'}</td>
+        <td class=""n"">${st.media?eur(st.media):'—'}</td><td class=""n"">${eur(st.gasto)}</td></tr>
+        <tr class=""art-hist"" id=""h-${uid}"" style=""display:none""><td colspan=""9""></td></tr>`;
+    }).join('');
+    return `<div class=""empresa-grupo""><div class=""empresa-cab"">🏢 ${emp}<span class=""count"">${g.length}</span>
+      <span class=""suma"">${eur(g.reduce((s,x)=>s+x.st.gasto,0))}</span></div>
+      <div class=""wrapx""><table class=""arts""><thead><tr><th>Artículo</th><th class=""n"">Regs.</th><th class=""n"">Primer precio</th>
+      <th class=""n"" title=""Último precio y variación desde el primer registro"">Último precio (var. desde 1º)</th><th class=""n"">Var. última compra</th>
+      <th class=""n"">Mín.</th><th class=""n"">Máx.</th><th class=""n"">Media</th><th class=""n"">Gasto</th></tr></thead><tbody>${filas}</tbody></table></div></div>`;
+  }).join('');
+  c.innerHTML=html;
+}
+// Despliega el histórico del artículo: gráfico, registros con variación y comparación con otras empresas.
+function toggleArticulo(uid){
+  const fila=$id('h-'+uid), visible=fila.style.display!=='none';
+  fila.style.display=visible?'none':'';
+  if(visible || fila.dataset.render) return;
+  fila.dataset.render='1';
+  const x=window._artData[uid], a=x.a, regs=a.regs.filter(r=>r.precio>0);
+  const primero=regs[0];
+  const lineas=regs.map((r,i)=>{
+    const prev=i>0?regs[i-1].precio:null;
+    return `<div class=""art-reg"" onclick=""cerrarModal();setTimeout(()=>abrirModal(${r.idx}),50)"">
+      <span>${r.fechaTxt}</span><span>Nº ${r.numero}</span><span>${r.cant}</span><span>${eur(r.precio)}</span>
+      <span>${prev===null?'—':fmtVar(pctVar(r.precio,prev))}</span><span>${i===0?'—':fmtVar(pctVar(r.precio,primero.precio))}</span></div>`;
+  }).join('');
+  // Mismo artículo en OTRAS empresas: último precio y diferencia respecto a esta
+  const otras=[];
+  (window._artMapa||new Map()).forEach(o=>{
+    if(o.clave!==a.clave || o.empresa===a.empresa) return;
+    const rp=o.regs.filter(r=>r.precio>0); if(!rp.length) return;
+    const u=rp[rp.length-1];
+    otras.push(`<div>${o.empresa}: <b>${eur(u.precio)}</b> ${x.st.ultimo?fmtVar(pctVar(u.precio,x.st.ultimo.precio)):''} <small>(${u.fechaTxt})</small></div>`);
+  });
+  fila.querySelector('td').innerHTML=`<div class=""art-panel"">
+    <canvas class=""hist-canvas"" width=""260"" height=""90""></canvas>
+    <div class=""art-lista""><div class=""art-reg cab""><span>Fecha</span><span>Documento</span><span>Cant.</span><span>Precio</span><span>vs anterior</span><span>vs 1º</span></div>${lineas}</div>
+    <div class=""art-otras""><b>También en otras empresas</b>${otras.length?otras.join(''):'<i>Solo se ha comprado aquí</i>'}</div></div>`;
+  dibujarHistorico(fila.querySelector('canvas'), regs);
+}
+
 /* ─── Init ─── */
 poblarFiltros();
 poblarSelectorAnios();
 try{ dibujarGrafico(); filtrarTrimestre(); } catch(e){ console.error(e); }
+cargarVistasGuardadas();
+document.getElementById('lblTam').textContent = document.getElementById('sliderMiniatura').value+'px';
 filtrar();
 window.addEventListener('resize',()=>{ try{ dibujarGrafico(); dibujarIvaTrimestral(); }catch(e){} });
 ";

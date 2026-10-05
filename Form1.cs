@@ -988,7 +988,7 @@ namespace FACTicket_Scanner
                     return;
                 }
 
-                var duplicado = album.BuscarDuplicadoPorPHash(img, out int distanciaPHash);
+                var duplicado = album.BuscarDuplicadoPorPHash(img, out int distanciaPHash, out LogComparacionDuplicado logDuplicado);
                 if (duplicado != null)
                 {
                     string resumen =
@@ -1001,10 +1001,14 @@ namespace FACTicket_Scanner
 
                     // Vista previa lado a lado: original (ya guardada) y duplicada
                     // (recién añadida), con 30 s de cuenta atrás para decidir.
+                    // Se pasa el log de comparación para mostrarlo bajo las imágenes
+                    // y poder exportarlo a .txt.
+                    logDuplicado.RutaImagenNueva = ruta;
                     bool continuar = DialogoAutoConfirmar.ConfirmarDuplicadoConVistaPrevia(
                         img, ObtenerRutaImagenFactura(duplicado),
                         $"Esta imagen parece coincidir con una factura ya escaneada:\n\n{resumen}\n\n¿Continuar de todos modos?",
-                        "Posible imagen duplicada", resultadoPorDefecto: false, segundos: 30);
+                        "Posible imagen duplicada", resultadoPorDefecto: false, segundos: 30,
+                        log: logDuplicado);
 
                     if (!continuar)
                     {
@@ -1397,6 +1401,22 @@ namespace FACTicket_Scanner
                 {
                     // Se difiere: RecargarVisor navega la propia página que envió el mensaje
                     BeginInvoke(new Action(RecargarVisor));
+                    return;
+                }
+
+                // Exportación desde el visor web (CSV/JSON/Excel...): el HTML envía el
+                // contenido y el nombre; aquí se pide la ruta con "Guardar como...".
+                // Debe ir ANTES del resto de acciones para no alterar el estado del modal.
+                if (accion == "guardarArchivo")
+                {
+                    string nombreArchivo = root.TryGetProperty("nombre", out var nm) ? nm.GetString() ?? "exportacion.txt" : "exportacion.txt";
+                    string contenidoArchivo = root.TryGetProperty("contenido", out var ct) ? ct.GetString() ?? "" : "";
+                    string filtroArchivo = root.TryGetProperty("filtro", out var fl) ? fl.GetString() ?? "Todos los archivos (*.*)|*.*" : "Todos los archivos (*.*)|*.*";
+                    BeginInvoke(new Action(() =>
+                    {
+                        string? guardado = ExportadorArchivos.GuardarTextoConDialogo(this, nombreArchivo, contenidoArchivo, filtroArchivo);
+                        if (guardado != null) Log("Visor: exportado " + guardado);
+                    }));
                     return;
                 }
 

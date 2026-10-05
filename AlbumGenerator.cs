@@ -850,22 +850,78 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         // Busca si una imagen recién cargada/capturada ya coincide (por pHash)
         // con alguna factura guardada previamente.
+        // (Sobrecarga sencilla: mantiene la firma original; descarta el log.)
         // -----------------------------------------------------------------------
         public DatosTicket? BuscarDuplicadoPorPHash(Mat imagenNueva, out int distanciaEncontrada)
+        {
+            return BuscarDuplicadoPorPHash(imagenNueva, out distanciaEncontrada, out _);
+        }
+
+        // -----------------------------------------------------------------------
+        // Igual que la anterior pero además devuelve un LogComparacionDuplicado
+        // con TODOS los datos comparados (hashes, distancia, umbral, mejores
+        // candidatos, estadísticas...) para mostrarlo/exportarlo en el diálogo
+        // de duplicados y poder investigar fallos de comparación.
+        //
+        // Parámetros:
+        //   imagenNueva          : imagen recién cargada (no se libera aquí).
+        //   distanciaEncontrada  : bits distintos de la mejor coincidencia (-1 si no hay).
+        //   log                  : log completo de la comparación (nunca null).
+        // Devuelve la factura duplicada, o null si no hay coincidencia <= umbral.
+        // -----------------------------------------------------------------------
+        public DatosTicket? BuscarDuplicadoPorPHash(Mat imagenNueva, out int distanciaEncontrada, out LogComparacionDuplicado log)
         {
             distanciaEncontrada = -1;
             string carpetaTickets = System.IO.Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
             string hashNuevo = CalcularPHash(imagenNueva);
 
             var existentes = CargarTodasLasFacturas(carpetaTickets);
+
+            // Log: datos de la imagen nueva y estadísticas generales
+            log = new LogComparacionDuplicado
+            {
+                HashNuevo = hashNuevo,
+                AnchoNueva = imagenNueva.Width,
+                AltoNueva = imagenNueva.Height,
+                CanalesNueva = imagenNueva.Channels(),
+                Umbral = UMBRAL_PHASH,
+                TotalFacturasExistentes = existentes.Count
+            };
+
+            var candidatos = new List<CandidatoComparacion>();
             DatosTicket? mejor = null;
             int mejorDistancia = int.MaxValue;
 
             foreach (var t in existentes)
             {
-                if (string.IsNullOrEmpty(t.PHash)) continue;
+                if (string.IsNullOrEmpty(t.PHash)) { log.FacturasSinPHash++; continue; }
                 int d = DistanciaHamming(hashNuevo, t.PHash);
+                candidatos.Add(new CandidatoComparacion
+                {
+                    Empresa = t.Empresa,
+                    Numero = t.Numero,
+                    Fecha = t.Fecha,
+                    FechaGuardado = t.FechaGuardado,
+                    PHash = t.PHash,
+                    Distancia = d
+                });
                 if (d < mejorDistancia) { mejorDistancia = d; mejor = t; }
+            }
+
+            // Se conservan los 5 candidatos más parecidos (aunque no superen el umbral)
+            log.Candidatos = candidatos.OrderBy(c => c.Distancia).Take(5).ToList();
+
+            if (mejor != null)
+            {
+                // Se rellenan siempre los datos del mejor candidato: si no llega al
+                // umbral el log sirve para ver "por cuánto" falló la coincidencia.
+                log.Distancia = mejorDistancia;
+                log.HashExistente = mejor.PHash;
+                log.EmpresaExistente = mejor.Empresa;
+                log.NumeroExistente = mejor.Numero;
+                log.FechaExistente = mejor.Fecha;
+                log.TotalExistente = mejor.Total;
+                log.GuardadaExistente = mejor.FechaGuardado;
             }
 
             if (mejor != null && mejorDistancia <= UMBRAL_PHASH)
