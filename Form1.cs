@@ -825,7 +825,7 @@ namespace FACTicket_Scanner
                         panelGuardar.chkGuardarOriginal.Checked, panelGuardar.chkGuardarJpg.Checked,
                         panelGuardar.chkGuardarPdf.Checked, panelGuardar.chkExtraerGemini.Checked, MostrarRevisionEmbebida);
                     lblEstado.Text = "✅ Factura actualizada.";
-                    DialogoAutoConfirmar.Aviso("La factura se editó y guardó correctamente.", "Éxito", 2);
+                    DialogoAutoConfirmar.Aviso("La factura se editó y guardó correctamente.", "Éxito", 2, exito: true);
                 }
                 catch (Exception ex)
                 {
@@ -903,7 +903,7 @@ namespace FACTicket_Scanner
                         panelGuardar.chkGuardarOriginal.Checked, panelGuardar.chkGuardarJpg.Checked,
                         panelGuardar.chkGuardarPdf.Checked, MostrarRevisionEmbebida);
                     lblEstado.Text = "✅ Factura actualizada.";
-                    DialogoAutoConfirmar.Aviso("La factura se editó y guardó correctamente.", "Éxito", 2);
+                    DialogoAutoConfirmar.Aviso("La factura se editó y guardó correctamente.", "Éxito", 2, exito: true);
                 }
                 catch (Exception ex)
                 {
@@ -1050,8 +1050,8 @@ namespace FACTicket_Scanner
                     logDuplicado.RutaImagenNueva = ruta;
                     bool continuar = DialogoAutoConfirmar.ConfirmarDuplicadoConVistaPrevia(
                         img, ObtenerRutaImagenFactura(duplicado),
-                        $"Esta imagen parece coincidir con una factura ya escaneada:\n\n{resumen}\n\n¿Continuar de todos modos?",
-                        "Posible imagen duplicada", resultadoPorDefecto: false, segundos: 30,
+                        $"Esta imagen parece coincidir con una factura ya escaneada:\n\n{resumen}\n\n¿Procesar la imagen o saltarla?",
+                        "Posible imagen duplicada", resultadoPorDefecto: false, segundos: 10,
                         log: logDuplicado);
 
                     if (!continuar)
@@ -1137,8 +1137,9 @@ namespace FACTicket_Scanner
                         $"Coincidencia: {63 - distanciaPHash}/63 bits";
 
                     bool continuar = DialogoAutoConfirmar.Confirmar(
-                        $"Esta imagen parece coincidir con una factura ya escaneada:\n\n{resumen}\n\n¿Continuar de todos modos?",
-                        "Posible imagen duplicada", resultadoPorDefecto: false, traerAlFrente: true);
+                        $"Esta imagen parece coincidir con una factura ya escaneada:\n\n{resumen}\n\n¿Procesar la imagen o saltarla?",
+                        "Posible imagen duplicada", resultadoPorDefecto: false, segundos: 10, traerAlFrente: true,
+                        textoSi: "Procesar imagen", textoNo: "Saltar imagen", contadorRojoUltimoParpadea: true);
 
                     if (!continuar)
                     {
@@ -1574,36 +1575,102 @@ namespace FACTicket_Scanner
             }
 
             btnCerrarVisor_Click(null, EventArgs.Empty);
+            await AbrirEditorTicketAsync(img, rutaJsonAbs);
+        }
 
-            rutaJsonEdicionActual = rutaJsonAbs;
-            colaArchivos.Clear();
-            indiceColaActual = -1;
+        // -----------------------------------------------------------------------
+        // Abre EditorTicketPanel (integrado, cuadrícula 2x2) para editar una factura ya
+        // guardada. "Reprocesar imagen" aplica solo los controles en local;
+        // "Reescanear solo datos" llama a Gemini sin tocar la imagen. Al
+        // pulsar Guardar se persiste sobre la MISMA carpeta (sin Gemini).
+        // Toma posesión de 'img' (la libera al terminar).
+        // -----------------------------------------------------------------------
+        private async System.Threading.Tasks.Task AbrirEditorTicketAsync(Mat img, string rutaJsonAbs)
+        {
+            var datosIniciales = DatosTicket.CargarUnico(rutaJsonAbs);
+            if (datosIniciales == null)
+            {
+                img.Dispose();
+                MessageBox.Show("No se pudo leer el JSON de esta factura.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
 
-            fotoCapturada?.Dispose();
-            fotoCapturada = img;
-            rotacionActual = 0;
-            modoCaptura = true;
-            ResetearZoom();
+            // Controles propios del editor, inicializados con ajustes automáticos.
+            var controles = new PanelAjustesEscaneo { Dock = DockStyle.Fill };
+            var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(img);
+            controles.trkContraste.Value = Math.Min(controles.trkContraste.Maximum, Math.Max(controles.trkContraste.Minimum, autoContraste));
+            controles.trkBrillo.Value = Math.Min(controles.trkBrillo.Maximum, Math.Max(controles.trkBrillo.Minimum, autoBrillo));
+            controles.trkRuido.Value = Math.Min(controles.trkRuido.Maximum, Math.Max(controles.trkRuido.Minimum, autoRuido + 1));
+            controles.trkNitidez.Value = 1;
 
-            var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
-            panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
-            panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
-            panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
-            panelAjustes.trkNitidez.Value = 1;
-            // Umbral fijo: NO se resetea al cargar/capturar; se mantiene el valor elegido por el usuario.
+            // Panel de datos sin botones propios (los ofrece el editor).
+            var panelDatos = new PanelRevisionTicket { Dock = DockStyle.Fill, BotonesPropios = false };
+            panelDatos.Mostrar(datosIniciales, sinCuentaAtras: true);
 
-            panelGuardar.btnGuardar.Enabled = true;
-            btnRepetir.Enabled = true;
-            btnRotar.Enabled = true;
-            btnCapturar.Enabled = false;
+            // Reprocesado 100% local con los valores actuales de los sliders.
+            Mat Reprocesado() => ImageProcessor.ProcesarImagen(img, 0,
+                controles.trkBlock.Value * 2 + 1, controles.trkC.Value,
+                controles.trkRuido.Value, controles.trkNitidez.Value, controles.trkGrueso.Value,
+                controles.trkContraste.Value, controles.trkBrillo.Value,
+                controles.trkUmbral.Value, controles.trkMargen.Value,
+                controles.chkEdicionManual.Checked,
+                controles.trkMargenSup.Value, controles.trkMargenInf.Value,
+                controles.trkMargenIzq.Value, controles.trkMargenDer.Value);
 
-            // Al editar, por defecto NO se vuelve a llamar a Gemini (se
-            // reutilizan los datos ya guardados); el usuario puede marcarlo
-            // manualmente si quiere forzar un reescaneo.
-            panelGuardar.chkExtraerGemini.Checked = false;
+            // Reescaneo de datos con Gemini (sobre la original, como hacía el flujo anterior).
+            async System.Threading.Tasks.Task ReescanearDatos(Mat _)
+            {
+                var nuevos = await GeminiAPI.ExtraerDatosFactura(img);
+                panelDatos.Mostrar(nuevos, sinCuentaAtras: true);
+            }
 
-            lblEstado.Text = "✏️ Editando factura – ajusta y pulsa Guardar";
-            Reprocesar();
+            // Editor integrado: sustituye temporalmente al panel de captura dentro de Form1.
+            var editor = new EditorTicketPanel(img, Reprocesado(), controles, panelDatos, Reprocesado, ReescanearDatos);
+            var tcs = new System.Threading.Tasks.TaskCompletionSource<ResultadoEditor>();
+            editor.Cerrado += (s, r) => tcs.TrySetResult(r);
+
+            panelIzquierdo.Visible = false;
+            panelDerecho.Visible = false;
+            Controls.Add(editor);
+            editor.BringToFront();
+
+            ResultadoEditor resultado = await tcs.Task;
+
+            Controls.Remove(editor);
+            panelIzquierdo.Visible = true;
+            panelDerecho.Visible = true;
+
+            if (resultado != ResultadoEditor.Guardar || editor.ImagenProcesada == null)
+            {
+                editor.Dispose();
+                img.Dispose();
+                return;
+            }
+
+            var datosFinales = panelDatos.ObtenerDatosEditados();
+            Mat copiaProcesada = editor.ImagenProcesada.Clone();
+            editor.Dispose();
+            this.UseWaitCursor = true;
+            try
+            {
+                // extraerConGemini:false -> se guardan los datos editados en el editor.
+                await album.EditarFacturaCompleta(rutaJsonAbs, copiaProcesada, img,
+                    panelGuardar.chkGuardarOriginal.Checked, panelGuardar.chkGuardarJpg.Checked,
+                    panelGuardar.chkGuardarPdf.Checked, false,
+                    _ => System.Threading.Tasks.Task.FromResult<DatosTicket?>(datosFinales));
+                lblEstado.Text = "✅ Factura actualizada.";
+                DialogoAutoConfirmar.Aviso("La factura se editó y guardó correctamente.", "Éxito", 2, exito: true);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al editar la factura:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                copiaProcesada.Dispose();
+                img.Dispose();
+                this.UseWaitCursor = false;
+            }
         }
         /*private async void btnEditarVisor_Click(object? sender, EventArgs e)
         {

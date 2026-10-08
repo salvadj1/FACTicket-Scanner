@@ -20,7 +20,7 @@ namespace FACTicket_Scanner
             sb.AppendLine(Html());
             sb.AppendLine("<script>");
             sb.AppendLine("let facturasData=" + JsonSerializer.Serialize(lista, new JsonSerializerOptions { WriteIndented = false }) + ";");
-            sb.AppendLine("let albaranesData=" + JsonSerializer.Serialize(listaAlbaranes ?? new List<DatosTicket>(), new JsonSerializerOptions { WriteIndented = false }) + ";");
+            sb.AppendLine("let albaranesData=" + JsonSerializer.Serialize(PrefijarRutasAlbaranes(listaAlbaranes), new JsonSerializerOptions { WriteIndented = false }) + ";");
             // Empresas obtenidas de las carpetas en disco (no del JSON de cada ticket).
             sb.AppendLine("let empresasCarpetasFacturas=" + JsonSerializer.Serialize(empresasCarpetas ?? new List<string>()) + ";");
             sb.AppendLine("let empresasCarpetasAlbaranes=" + JsonSerializer.Serialize(empresasCarpetasAlbaranes ?? new List<string>()) + ";");
@@ -32,6 +32,36 @@ namespace FACTicket_Scanner
             sb.AppendLine("</script></body></html>");
 
             System.IO.File.WriteAllText(rutaHtml, sb.ToString(), System.Text.Encoding.UTF8);
+        }
+
+        /// <summary>
+        /// Los albaranes se guardan con rutas relativas a la raíz "Albaranes",
+        /// pero el álbum HTML vive en la raíz "Facturas". Devuelve una COPIA de
+        /// la lista con imagen/pdf/json prefijados con "../Albaranes/" para que
+        /// el visor (vista previa y edición) encuentre los archivos.
+        /// No modifica los objetos originales ni lo guardado en disco.
+        /// </summary>
+        /// <param name="albaranes">Lista de albaranes cargada desde disco (puede ser null).</param>
+        /// <param name="carpetaRaiz">Nombre de la carpeta raíz de albaranes.</param>
+        /// <returns>Lista nueva con las rutas ajustadas (vacía si la entrada es null).</returns>
+        private static List<DatosTicket> PrefijarRutasAlbaranes(List<DatosTicket>? albaranes, string carpetaRaiz = "Albaranes")
+        {
+            var resultado = new List<DatosTicket>();
+            if (albaranes == null) return resultado;
+
+            string prefijo = "../" + carpetaRaiz + "/";
+            foreach (var original in albaranes)
+            {
+                // Copia profunda vía JSON para no tocar el objeto compartido.
+                var copia = JsonSerializer.Deserialize<DatosTicket>(JsonSerializer.Serialize(original));
+                if (copia == null) continue;
+
+                if (!string.IsNullOrEmpty(copia.ImagenRelativa)) copia.ImagenRelativa = prefijo + copia.ImagenRelativa;
+                if (!string.IsNullOrEmpty(copia.PdfRelativa)) copia.PdfRelativa = prefijo + copia.PdfRelativa;
+                if (!string.IsNullOrEmpty(copia.JsonRelativa)) copia.JsonRelativa = prefijo + copia.JsonRelativa;
+                resultado.Add(copia);
+            }
+            return resultado;
         }
 
         private static string Html() => @"

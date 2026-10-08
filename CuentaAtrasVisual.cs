@@ -38,6 +38,18 @@ namespace FACTicket_Scanner
         /// <summary>Milisegundos entre cambios de fase en modo urgente.</summary>
         public int IntervaloUrgenteMs { get; set; } = 250;
 
+        /// <summary>false = el texto nunca parpadea (p. ej. avisos de éxito).</summary>
+        public bool Parpadea { get; set; } = true;
+
+        /// <summary>
+        /// 0 = parpadea durante toda la cuenta atrás (comportamiento clásico).
+        /// N &gt; 0 = solo parpadea cuando quedan N segundos o menos.
+        /// </summary>
+        public int SegundosParpadeo { get; set; } = 0;
+
+        /// <summary>true = el texto usa ColorUrgente (rojo) desde el primer segundo.</summary>
+        public bool SiempreUrgente { get; set; } = false;
+
         // tamanoFuente: tamaño en puntos del texto mientras la cuenta atrás está activa.
         public CuentaAtrasVisual(float tamanoFuente = 16f)
         {
@@ -61,12 +73,23 @@ namespace FACTicket_Scanner
         public void Actualizar(string texto, int segundosRestantes)
         {
             Text = texto;
-            _urgente = segundosRestantes <= SegundosUrgente;
+            _urgente = SiempreUrgente || segundosRestantes <= SegundosUrgente;
+            Color colorBase = _urgente ? ColorUrgente : ColorNormal;
+
+            // Sin parpadeo (o todavía fuera de los últimos N segundos): color fijo.
+            bool debeParpadear = Parpadea && (SegundosParpadeo <= 0 || segundosRestantes <= SegundosParpadeo);
+            if (!debeParpadear)
+            {
+                _parpadeo.Stop();
+                ForeColor = colorBase;
+                return;
+            }
+
             _parpadeo.Interval = _urgente ? IntervaloUrgenteMs : IntervaloNormalMs;
             if (!_parpadeo.Enabled)
             {
                 _fase = true;
-                ForeColor = _urgente ? ColorUrgente : ColorNormal;
+                ForeColor = colorBase;
                 _parpadeo.Start();
             }
         }

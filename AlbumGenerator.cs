@@ -216,7 +216,7 @@ namespace FACTicket_Scanner
                         listaAlbaranesTras, ObtenerEmpresasDesdeCarpetas(carpetaAlbaranesTras));
 
                     actualizarEstado($"✅ Guardado: {carpetaDestino}");
-                    DialogoAutoConfirmar.Aviso($"Guardado en:\n{carpetaDestino}", "Éxito", 2);
+                    DialogoAutoConfirmar.Aviso($"Guardado en:\n{carpetaDestino}", "Éxito", 2, exito: true);
                 }
                 catch (Exception ex)
                 {

@@ -17,7 +17,8 @@ namespace FACTicket_Scanner
         // traerAlFrente = true: antes de mostrarse, trae la ventana principal al frente
         // (maximizada si estaba minimizada o detrás de otra app) y luego el diálogo encima.
         // -----------------------------------------------------------------------
-        public static bool Confirmar(string mensaje, string titulo, bool resultadoPorDefecto, int segundos = Form1.Timeout_Dialogos, bool traerAlFrente = false)
+        public static bool Confirmar(string mensaje, string titulo, bool resultadoPorDefecto, int segundos = Form1.Timeout_Dialogos, bool traerAlFrente = false,
+            string textoSi = "Sí", string textoNo = "No", bool contadorRojoUltimoParpadea = false)
         {
             using var dlg = new Form
             {
@@ -44,8 +45,13 @@ namespace FACTicket_Scanner
             };
             // Cuenta atrás visual: fuente grande y parpadeo (más rápido y rojo al final)
             var lblContador = new CuentaAtrasVisual { Left = 15, Width = 330 };
-            var btnSi = new Button { Text = "Sí", Width = 100, Height = 34, DialogResult = DialogResult.Yes };
-            var btnNo = new Button { Text = "No", Width = 100, Height = 34, DialogResult = DialogResult.No };
+            // Contador rojo fijo y parpadeo solo en el último segundo (opcional).
+            if (contadorRojoUltimoParpadea) { lblContador.SiempreUrgente = true; lblContador.SegundosParpadeo = 1; }
+            // Ancho de botón según el texto (mínimo 100 px).
+            int wBtn = Math.Max(100, Math.Max(
+                TextRenderer.MeasureText(textoSi, dlg.Font).Width, TextRenderer.MeasureText(textoNo, dlg.Font).Width) + 30);
+            var btnSi = new Button { Text = textoSi, Width = wBtn, Height = 34, DialogResult = DialogResult.Yes };
+            var btnNo = new Button { Text = textoNo, Width = wBtn, Height = 34, DialogResult = DialogResult.No };
             var btnX = new Button { Text = "✕", Width = 24, Height = 24, FlatStyle = FlatStyle.Flat };
             dlg.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnSi, btnNo, btnX });
             dlg.AcceptButton = resultadoPorDefecto ? btnSi : btnNo;
@@ -56,7 +62,7 @@ namespace FACTicket_Scanner
             lblContador.Top = yTrasMensaje;
             int yBotones = yTrasMensaje + 48;
             btnX.Location = new System.Drawing.Point(350, yTrasMensaje + 8);
-            btnSi.Location = new System.Drawing.Point(130, yBotones);
+            btnSi.Location = new System.Drawing.Point(235 - wBtn - 5, yBotones);   // con wBtn=100 queda en 130
             btnNo.Location = new System.Drawing.Point(240, yBotones);
             dlg.ClientSize = new System.Drawing.Size(dlg.ClientSize.Width, yBotones + 34 + 15);
 
@@ -172,9 +178,9 @@ namespace FACTicket_Scanner
                 Font = new System.Drawing.Font(dlg.Font.FontFamily, 9.5f)
             };
             // Cuenta atrás visual: fuente grande y parpadeo (más rápido y rojo al final)
-            var lblContador = new CuentaAtrasVisual { Left = 15, Top = 122, Width = 500 };
-            var btnSi = new Button { Text = "Sí, continuar", Width = 140, Height = 34, DialogResult = DialogResult.Yes, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
-            var btnNo = new Button { Text = "No, descartar", Width = 140, Height = 34, DialogResult = DialogResult.No, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
+            var lblContador = new CuentaAtrasVisual { Left = 15, Top = 122, Width = 500, SiempreUrgente = true, SegundosParpadeo = 1 };
+            var btnSi = new Button { Text = "Procesar imagen", Width = 140, Height = 34, DialogResult = DialogResult.Yes, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
+            var btnNo = new Button { Text = "Saltar imagen", Width = 140, Height = 34, DialogResult = DialogResult.No, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
             panelInferior.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnSi, btnNo });
 
             // Log de comparación (solo si se proporciona): cuadro de texto de solo lectura
@@ -324,7 +330,7 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         // Aviso simple (solo Aceptar) con cuenta atrás propia.
         // -----------------------------------------------------------------------
-        public static void Aviso(string mensaje, string titulo, int segundos = Form1.Timeout_Dialogos)
+        public static void Aviso(string mensaje, string titulo, int segundos = Form1.Timeout_Dialogos, bool exito = false)
         {
             using var dlg = new Form
             {
@@ -350,11 +356,31 @@ namespace FACTicket_Scanner
                 Font = new System.Drawing.Font(dlg.Font.FontFamily, 9.5f)
             };
             // Cuenta atrás visual: fuente grande y parpadeo (más rápido y rojo al final)
-            var lblContador = new CuentaAtrasVisual { Left = 15, Width = 330 };
+            // Modo éxito: contador discreto SIN parpadeo; el check verde se añade abajo.
+            var lblContador = new CuentaAtrasVisual(exito ? 10f : 16f) { Left = 15, Width = 330, Parpadea = !exito };
+            if (exito) lblContador.ColorNormal = System.Drawing.Color.DimGray;
             var btnOk = new Button { Text = "Aceptar", Width = 100, Height = 34, DialogResult = DialogResult.OK };
             var btnX2 = new Button { Text = "✕", Width = 24, Height = 24, FlatStyle = FlatStyle.Flat };
             dlg.Controls.AddRange(new Control[] { lblMensaje, lblContador, btnOk, btnX2 });
             dlg.AcceptButton = btnOk;
+
+            // Check verde a la izquierda del mensaje (solo avisos de éxito).
+            if (exito)
+            {
+                var lblCheck = new Label
+                {
+                    Text = "✔",
+                    ForeColor = System.Drawing.Color.ForestGreen,
+                    Font = new System.Drawing.Font("Segoe UI Symbol", 24f, System.Drawing.FontStyle.Bold),
+                    AutoSize = true,
+                    Left = 12,
+                    Top = 6
+                };
+                dlg.Controls.Add(lblCheck);
+                lblMensaje.Left = 62;
+                lblMensaje.Top = 18;
+                lblMensaje.MaximumSize = new System.Drawing.Size(340, 0);
+            }
 
             // Reposiciona todo debajo del mensaje ya medido (alto variable) y
             // ajusta el alto del diálogo para que quepa siempre completo.

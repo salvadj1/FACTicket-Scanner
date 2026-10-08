@@ -28,6 +28,12 @@ namespace FACTicket_Scanner
 
         public event EventHandler<RevisionCompletadaEventArgs>? RevisionCompletada;
 
+        /// <summary>
+        /// Si es false, el panel no añade sus botones Guardar/Cancelar ni el contador
+        /// (útil cuando un contenedor, como EditorTicketPanel, ya los ofrece).
+        /// </summary>
+        public bool BotonesPropios { get; set; } = true;
+
         public PanelRevisionTicket()
         {
             AutoScroll = true;
@@ -145,10 +151,13 @@ namespace FACTicket_Scanner
             _lblContador = new CuentaAtrasVisual(13f) { Left = xLbl, Top = y + 34, Width = 380 };
             var btnCancelarTimer = new Button { Left = xLbl + 390, Top = y + 40, Width = 22, Height = 22, Text = "✕", FlatStyle = FlatStyle.Flat };
             btnCancelarTimer.Click += (s, e) => { _timer.Stop(); _lblContador.Detener(""); btnCancelarTimer.Visible = false; };
-            Controls.Add(btnOk);
-            Controls.Add(btnCan);
-            Controls.Add(_lblContador);
-            Controls.Add(btnCancelarTimer);
+            if (BotonesPropios)
+            {
+                Controls.Add(btnOk);
+                Controls.Add(btnCan);
+                Controls.Add(_lblContador);
+                Controls.Add(btnCancelarTimer);
+            }
 
             btnOk.Click += (s, e) => Finalizar(guardar: true);
             btnCan.Click += (s, e) => Finalizar(guardar: false);
@@ -165,6 +174,16 @@ namespace FACTicket_Scanner
                 return;
             }
 
+            RevisionCompletada?.Invoke(this, new RevisionCompletadaEventArgs(ObtenerDatosEditados()));
+        }
+
+        /// <summary>
+        /// Vuelca el contenido actual de los campos sobre los datos mostrados y los devuelve.
+        /// Devuelve null si todavía no se ha llamado a Mostrar().
+        /// </summary>
+        public DatosTicket? ObtenerDatosEditados()
+        {
+            if (_datosActuales == null) return null;
             var datos = _datosActuales;
             datos.TipoDocumento = _cmbTipo.SelectedItem?.ToString() ?? "factura";
             datos.Empresa = _textBoxes[0].Text.Trim();
@@ -181,8 +200,7 @@ namespace FACTicket_Scanner
             datos.Iva = _textBoxes[11].Text.Trim();
             datos.Total = _textBoxes[12].Text.Trim();
             datos.MetodoPago = _textBoxes[13].Text.Trim();
-
-            RevisionCompletada?.Invoke(this, new RevisionCompletadaEventArgs(datos));
+            return datos;
         }
     }
 }
