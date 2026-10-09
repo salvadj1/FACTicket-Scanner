@@ -39,7 +39,7 @@ namespace FACTicket_Scanner
 
         // --- General ---
         // Abre el visor web de facturas nada más arrancar la aplicación.
-        public bool AbrirVisorAlIniciar { get; set; } = true;
+        public bool AbrirVisorAlIniciar { get; set; } = false;
         // Pide confirmación al cerrar la ventana principal.
         public bool ConfirmarAlSalir { get; set; } = false;
 

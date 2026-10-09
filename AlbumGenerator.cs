@@ -480,19 +480,29 @@ namespace FACTicket_Scanner
 
             if (!string.Equals(carpetaEmpresaNueva, carpetaEmpresaActual, StringComparison.OrdinalIgnoreCase))
             {
-                string carpetaAnio = System.IO.Path.GetDirectoryName(carpetaFacturaActual)!;
-                string raiz = System.IO.Path.GetDirectoryName(carpetaAnio)!;
-                string nombreAnio = System.IO.Path.GetFileName(carpetaAnio);
+                // Niveles reales: .../{Año}/{EmpresaActual}/{Factura_x}
+                // (antes se tomaba la carpeta de empresa como si fuera el año y la
+                // factura acababa dentro de la empresa antigua como subcarpeta).
+                string carpetaEmpresaDirActual = System.IO.Path.GetDirectoryName(carpetaFacturaActual)!; // .../{Año}/{EmpresaActual}
+                string carpetaAnio = System.IO.Path.GetDirectoryName(carpetaEmpresaDirActual)!;          // .../{Año}
                 string nombreFactura = System.IO.Path.GetFileName(carpetaFacturaActual);
-                string carpetaEmpresaDestino = System.IO.Path.Combine(raiz, nombreAnio, carpetaEmpresaNueva);
+                string carpetaEmpresaDestino = System.IO.Path.Combine(carpetaAnio, carpetaEmpresaNueva);
                 System.IO.Directory.CreateDirectory(carpetaEmpresaDestino);
-                string carpetaFacturaNueva = System.IO.Path.Combine(carpetaEmpresaDestino, nombreFactura);
+
+                // Si ya existe una factura con ese nombre en la empresa destino, se añade sufijo _2, _3...
+                string nombreFacturaFinal = nombreFactura;
+                string carpetaFacturaNueva = System.IO.Path.Combine(carpetaEmpresaDestino, nombreFacturaFinal);
+                for (int n = 2; System.IO.Directory.Exists(carpetaFacturaNueva); n++)
+                {
+                    nombreFacturaFinal = $"{nombreFactura}_{n}";
+                    carpetaFacturaNueva = System.IO.Path.Combine(carpetaEmpresaDestino, nombreFacturaFinal);
+                }
                 System.IO.Directory.Move(carpetaFacturaActual, carpetaFacturaNueva);
                 rutaJsonFinal = System.IO.Path.Combine(carpetaFacturaNueva, "datos.json");
 
                 string Reemplazar(string relativa) => string.IsNullOrEmpty(relativa)
                     ? relativa
-                    : relativa.Replace($"/{carpetaEmpresaActual}/", $"/{carpetaEmpresaNueva}/");
+                    : relativa.Replace($"/{carpetaEmpresaActual}/{nombreFactura}/", $"/{carpetaEmpresaNueva}/{nombreFacturaFinal}/");
 
                 nuevosDatos.ImagenRelativa = Reemplazar(datosAntiguos.ImagenRelativa);
                 nuevosDatos.PdfRelativa = Reemplazar(datosAntiguos.PdfRelativa);

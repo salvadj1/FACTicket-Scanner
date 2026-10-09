@@ -13,7 +13,7 @@ namespace FACTicket_Scanner
     public partial class Form1 : Form
     {
         public const int Timeout_Dialogos = 5;
-        private const string Version = " - 1.80 beta";
+        private const string Version = " - 1.92 beta";
         // -----------------------------------------------------------------------
         // Dependencias
         // -----------------------------------------------------------------------
@@ -40,6 +40,9 @@ namespace FACTicket_Scanner
         // --- Cola de procesado por lotes (carga múltiple de archivos) ---
         private List<string> colaArchivos = new();
         private int indiceColaActual = -1;
+        // PDFs importados: ruta del PNG temporal de cada página -> ruta del PDF original
+        private readonly Dictionary<string, string> pdfOrigenPorPagina = new();
+        private readonly string carpetaTempPdf = Path.Combine(Path.GetTempPath(), "FACTicket_PDF");
         private string? rutaJsonEdicionActual = null; // != null mientras se edita una factura desde el visor
         private string? rutaJsonVisorParaReabrir = null; // ruta (relativa, como la usa el visor) de la factura editada, para reabrirla al terminar
 
@@ -192,6 +195,7 @@ namespace FACTicket_Scanner
             ConstruirBotonRecargarVisor();
             AsignarIconosMenu();
             ConfigurarZoomImagen();
+            ConstruirMenuPrincipal(); // menú principal HTML (Form1.MenuPrincipal.cs)
 
             album = new AlbumGenerator(NombreCarpeta, NombreAlbum, NombreDatos);
             ajustes = album.CargarAjustes();
@@ -213,6 +217,8 @@ namespace FACTicket_Scanner
                 ConstruirPanelDerecho();
                 album.RegenerarAlbumInicial();
                 MostrarLogo();
+                // Menú principal HTML al iniciar (salvo que se abra directamente el visor web)
+                if (!ajustes.AbrirVisorAlIniciar) MostrarMenuPrincipal();
                 // Ajustes > Cámara > "Reconectar la última al iniciar"
                 if (ajustes.ReconectarCamaraAlIniciar) ReconectarUltimaCamara();
             };
@@ -224,7 +230,12 @@ namespace FACTicket_Scanner
             };
 
             // Visualizar tickets al iniciar (Ajustes > General > "Abrir el visor web al iniciar")
-            if (ajustes.AbrirVisorAlIniciar) visorToolStripMenuItem_Click(null, null);
+            // Al cerrarlo con ✕ se vuelve al menú principal (ver Form1.MenuPrincipal.cs).
+            if (ajustes.AbrirVisorAlIniciar)
+            {
+                volverAlMenuAlCerrarVisor = true;
+                visorToolStripMenuItem_Click(null, null);
+            }
         }
 
         // -----------------------------------------------------------------------
@@ -863,6 +874,13 @@ namespace FACTicket_Scanner
             int rot = rotacionActual;
 
             bool perteneceALote = indiceColaActual >= 0 && indiceColaActual < colaArchivos.Count;
+            // Si la imagen viene de un PDF de UNA sola página, se conserva el PDF original.
+            // En PDFs multipágina rutaPdfOrigen queda null: cada factura genera su propio
+            // PDF (1 página) desde su imagen procesada, sin copiar el PDF completo.
+            string? rutaPdfOrigen = null;
+            if (perteneceALote && pdfOrigenPorPagina.TryGetValue(colaArchivos[indiceColaActual], out string? pdfOrigen)
+                && pdfOrigenPorPagina.Values.Count(v => v == pdfOrigen) == 1)
+                rutaPdfOrigen = pdfOrigen;
 
             panelGuardar.btnGuardar.Enabled = false;
             btnRotar.Enabled = false;
@@ -889,6 +907,7 @@ namespace FACTicket_Scanner
                     if (perteneceALote) CargarSiguienteDeCola();
                 },
                 MostrarRevisionEmbebida,
+                rutaPdfOrigen: rutaPdfOrigen,
                 reglasDuplicados: panelGuardar.ObtenerReglasDuplicados());
         }
         /*private async void BtnGuardar_Click(object? sender, EventArgs e)
@@ -1000,12 +1019,18 @@ namespace FACTicket_Scanner
         {
             using var dlg = new OpenFileDialog
             {
-                Filter = "Imágenes (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp",
+                Filter = ImportadorArchivos.ObtenerFiltroDialogo(),
                 Multiselect = true
             };
             if (dlg.ShowDialog() != DialogResult.OK) return;
 
-            colaArchivos = dlg.FileNames.ToList();
+            // Los PDF se convierten en una imagen por página (ver ImportadorArchivos)
+            ImportadorArchivos.LimpiarTemporales(carpetaTempPdf);
+            pdfOrigenPorPagina.Clear();
+            var erroresPdf = new List<string>();
+            colaArchivos = ImportadorArchivos.ExpandirPdfs(dlg.FileNames, carpetaTempPdf, pdfOrigenPorPagina, erroresPdf);
+            foreach (string err in erroresPdf) DialogoAutoConfirmar.Aviso(err, "Error");
+            if (colaArchivos.Count == 0) return;
             indiceColaActual = -1;
             if (panelVisor.Visible) btnCerrarVisor_Click(null, EventArgs.Empty);
             CargarSiguienteDeCola();

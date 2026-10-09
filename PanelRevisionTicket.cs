@@ -22,6 +22,7 @@ namespace FACTicket_Scanner
         private readonly List<TextBox> _textBoxes = new();
         private ComboBox _cmbTipo = null!;
         private DatosTicket? _datosActuales;
+        private bool _modoEdicion; // true al editar una factura ya guardada (sin cuenta atrás)
         private readonly Timer _timer = new() { Interval = 1000 };
         private int _restantes;
         private CuentaAtrasVisual _lblContador = null!;
@@ -43,6 +44,7 @@ namespace FACTicket_Scanner
         public void Mostrar(DatosTicket datos, bool sinCuentaAtras = false)
         {
             _datosActuales = datos;
+            _modoEdicion = sinCuentaAtras;
             ConstruirUi(datos);
             Visible = true;
             BringToFront();
@@ -116,6 +118,20 @@ namespace FACTicket_Scanner
                 var txt = new TextBox { Left = xTxt, Top = y, Width = wTxt, Text = valor };
                 Controls.Add(txt);
                 _textBoxes.Add(txt);
+
+                // Aviso informativo: en edición, cambiar la empresa a mano no la
+                // mueve de carpeta (se resuelve por CIF); hace falta reescanear.
+                if (_modoEdicion && _textBoxes.Count == 1)
+                {
+                    Controls.Add(new Label
+                    {
+                        Text = "⚠ Obligatorio reescaneo",
+                        Left = xTxt + wTxt + 6,
+                        Top = y + 3,
+                        AutoSize = true,
+                        ForeColor = System.Drawing.Color.DarkOrange
+                    });
+                }
                 y += rowH;
             }
 
