@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Diagnostics;
 using System.Drawing;
@@ -103,13 +103,12 @@ namespace FACTicket_Scanner
             abrirToolStripMenuItem.Image = IconoTexto("📂", 16);
             guardarToolStripMenuItem.Image = IconoTexto("💾", 16);
             salirToolStripMenuItem.Image = IconoTexto("🚪", 16);
-            camarasIpToolStripMenuItem.Image = IconoTexto("🔌", 16);
-            reconectarToolStripMenuItem.Image = IconoTexto("🔍", 16);
             carpetaToolStripMenuItem.Image = IconoTexto("🗂️", 16);
             aboutToolStripMenuItem.Image = IconoTexto("ℹ️", 16);
             logToolStripMenuItem.Image = IconoTexto("📋", 16);
             exportarToolStripMenuItem.Image = IconoTexto("📤", 16);
-            camaraToolStripMenuItem.Image = IconoTexto("📷", 16);
+            importarToolStripMenuItem.Image = IconoTexto("📥", 16);
+            desdeCamaraToolStripMenuItem.Image = IconoTexto("📷", 16);
             visorToolStripMenuItem.Image = IconoTexto("🌐", 16);
             conversorIMGPDFToolStripMenuItem.Image = IconoTexto("🖼️", 16);
             analizarPhashDeTodasLasFacturasToolStripMenuItem.Image = IconoTexto("🔎", 16);
@@ -1305,11 +1304,6 @@ namespace FACTicket_Scanner
             }
         }
 
-        private void camaraToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            camara.IniciarSeleccionUsb(ajustes, this, a => album.GuardarAjustes(a));
-        }
-
         private async void visorToolStripMenuItem_Click(object sender, EventArgs e)
         {
             try
@@ -1842,19 +1836,22 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
-        // Menú: Configuración > Cámaras IP
+        // Menú: Facturas > Importar > Desde cámara
+        // Conecta la cámara elegida en Ajustes > General > Cámara (la recordada
+        // en ajustes.json) para poder tomar la foto. Si ya está conectada, no
+        // hace nada (el visor en vivo ya está activo).
         // -----------------------------------------------------------------------
-        private void camarasIpToolStripMenuItem_Click(object sender, EventArgs e)
+        private void desdeCamaraToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            camara.IniciarSeleccionIp(ajustes, this, a => album.GuardarAjustes(a));
-        }
+            bool sinCamara = string.IsNullOrEmpty(ajustes.UltimoTipoCamara) || ajustes.UltimoTipoCamara == "FILE";
+            if (sinCamara)
+            {
+                DialogoAutoConfirmar.Aviso("Elige una cámara en Ajustes > General > Cámara.", "Importar desde cámara");
+                return;
+            }
 
-        // -----------------------------------------------------------------------
-        // Menú: Configuración > Reconectar
-        // -----------------------------------------------------------------------
-        private void reconectarToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            camara.IniciarSeleccionUsb(ajustes, this, a => album.GuardarAjustes(a));
+            if (camara.EstaConectada) return;
+            ReconectarUltimaCamara();
         }
 
         // -----------------------------------------------------------------------
@@ -1882,6 +1879,40 @@ namespace FACTicket_Scanner
         private void editarClavesAPIToolStripMenuItem_Click(object sender, EventArgs e)
         {
             GeminiAPI.AbrirGestionApis(this);
+        }
+
+        // -----------------------------------------------------------------------
+        // Menú: Ajustes > General (ventana con Generales, Cámara, Duplicados,
+        // Escaneo y Exportación). Al aceptar, persiste en ajustes.json y refresca
+        // lo que ya está en pantalla (reglas de duplicados y texto de la cámara).
+        // -----------------------------------------------------------------------
+        private void generalToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // Los botones de selección de cámara de la ventana conectan y guardan al
+            // momento (sobre la copia de ajustes que edita la ventana).
+            using var form = new AjustesForm(ajustes,
+                a => camara.IniciarSeleccionUsb(a, this, x => album.GuardarAjustes(x)),
+                a => camara.IniciarSeleccionIp(a, this, x => album.GuardarAjustes(x)));
+
+            // Aceptar: se usa la copia editada. Cancelar: se resincroniza con disco,
+            // por si la cámara se cambió y guardó desde la ventana.
+            bool aceptado = form.ShowDialog(this) == DialogResult.OK;
+            ajustes = aceptado ? form.Resultado : album.CargarAjustes();
+            if (aceptado) album.GuardarAjustes(ajustes);
+
+            // Reglas de duplicados: no dispara ReglasCambiadas (no hay doble guardado).
+            panelGuardar?.AplicarReglasDuplicados(new ReglasDuplicados
+            {
+                Numero = ajustes.DupNumero,
+                Fecha = ajustes.DupFecha,
+                Total = ajustes.DupTotal,
+                Empresa = ajustes.DupEmpresa
+            });
+
+            // Texto de la barra de cámara (sin limpiar la lista de cámaras encontradas).
+            bool esIp = cmbTipoCamara.SelectedIndex == 1;
+            txtUrlCamara.Text = esIp ? ajustes.UltimaUrlCamaraIp
+                                     : (ajustes.UltimoIndiceCamaraUsb >= 0 ? $"USB Puerto {ajustes.UltimoIndiceCamaraUsb}" : "");
         }
         // -----------------------------------------------------------------------
         // Menú: Ayuda > Acerca de

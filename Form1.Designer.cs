@@ -24,12 +24,6 @@ namespace FACTicket_Scanner
             this.exportarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.separadorArchivoToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
             this.salirToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.camaraMenuToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.camaraToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.camarasIpToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.separadorCamaraToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
-            this.reconectarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.verToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.visorToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.carpetaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.utilidadesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -72,6 +66,11 @@ namespace FACTicket_Scanner
             this.panelVisor = new System.Windows.Forms.Panel();
             this.webViewAlbum = new Microsoft.Web.WebView2.WinForms.WebView2();
             this.cerrarTrimestreToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.generalToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.importarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.desdeCamaraToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.separadorHerramientasToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
+            this.separadorAjustesToolStripMenuItem = new System.Windows.Forms.ToolStripSeparator();
             this.menuStrip1.SuspendLayout();
             this.panelNavModal.SuspendLayout();
             this.panelBarraVisor.SuspendLayout();
@@ -88,8 +87,6 @@ namespace FACTicket_Scanner
             this.menuStrip1.ImageScalingSize = new System.Drawing.Size(22, 22);
             this.menuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.archivoToolStripMenuItem,
-            this.camaraMenuToolStripMenuItem,
-            this.verToolStripMenuItem,
             this.utilidadesToolStripMenuItem,
             this.aPIToolStripMenuItem,
             this.ayudaToolStripMenuItem,
@@ -115,21 +112,38 @@ namespace FACTicket_Scanner
             // archivoToolStripMenuItem
             // 
             this.archivoToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.abrirToolStripMenuItem,
+            this.importarToolStripMenuItem,
             this.guardarToolStripMenuItem,
             this.exportarToolStripMenuItem,
+            this.cerrarTrimestreToolStripMenuItem,
             this.separadorArchivoToolStripMenuItem,
             this.salirToolStripMenuItem});
             this.archivoToolStripMenuItem.Name = "archivoToolStripMenuItem";
             this.archivoToolStripMenuItem.Size = new System.Drawing.Size(67, 23);
-            this.archivoToolStripMenuItem.Text = "Archivo";
+            this.archivoToolStripMenuItem.Text = "Facturas";
+            // 
+            // importarToolStripMenuItem
+            // 
+            this.importarToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.abrirToolStripMenuItem,
+            this.desdeCamaraToolStripMenuItem});
+            this.importarToolStripMenuItem.Name = "importarToolStripMenuItem";
+            this.importarToolStripMenuItem.Size = new System.Drawing.Size(235, 24);
+            this.importarToolStripMenuItem.Text = "📥  Importar";
+            // 
+            // desdeCamaraToolStripMenuItem
+            // 
+            this.desdeCamaraToolStripMenuItem.Name = "desdeCamaraToolStripMenuItem";
+            this.desdeCamaraToolStripMenuItem.Size = new System.Drawing.Size(235, 24);
+            this.desdeCamaraToolStripMenuItem.Text = "📷  Desde cámara";
+            this.desdeCamaraToolStripMenuItem.Click += new System.EventHandler(this.desdeCamaraToolStripMenuItem_Click);
             // 
             // abrirToolStripMenuItem
             // 
             this.abrirToolStripMenuItem.Name = "abrirToolStripMenuItem";
             this.abrirToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.O)));
             this.abrirToolStripMenuItem.Size = new System.Drawing.Size(235, 24);
-            this.abrirToolStripMenuItem.Text = "📂  Abrir archivo";
+            this.abrirToolStripMenuItem.Text = "📂  Desde archivo";
             this.abrirToolStripMenuItem.Click += new System.EventHandler(this.abrirToolStripMenuItem_Click);
             // 
             // guardarToolStripMenuItem
@@ -160,52 +174,6 @@ namespace FACTicket_Scanner
             this.salirToolStripMenuItem.Text = "🚪  Salir";
             this.salirToolStripMenuItem.Click += new System.EventHandler(this.salirToolStripMenuItem_Click);
             // 
-            // camaraMenuToolStripMenuItem
-            // 
-            this.camaraMenuToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.camaraToolStripMenuItem,
-            this.camarasIpToolStripMenuItem,
-            this.separadorCamaraToolStripMenuItem,
-            this.reconectarToolStripMenuItem});
-            this.camaraMenuToolStripMenuItem.Name = "camaraMenuToolStripMenuItem";
-            this.camaraMenuToolStripMenuItem.Size = new System.Drawing.Size(68, 23);
-            this.camaraMenuToolStripMenuItem.Text = "Cámara";
-            // 
-            // camaraToolStripMenuItem
-            // 
-            this.camaraToolStripMenuItem.Name = "camaraToolStripMenuItem";
-            this.camaraToolStripMenuItem.Size = new System.Drawing.Size(243, 24);
-            this.camaraToolStripMenuItem.Text = "📷  Cámara interna / USB";
-            this.camaraToolStripMenuItem.Click += new System.EventHandler(this.camaraToolStripMenuItem_Click);
-            // 
-            // camarasIpToolStripMenuItem
-            // 
-            this.camarasIpToolStripMenuItem.Name = "camarasIpToolStripMenuItem";
-            this.camarasIpToolStripMenuItem.Size = new System.Drawing.Size(243, 24);
-            this.camarasIpToolStripMenuItem.Text = "🌐  Cámaras IP detectadas";
-            this.camarasIpToolStripMenuItem.Click += new System.EventHandler(this.camarasIpToolStripMenuItem_Click);
-            // 
-            // separadorCamaraToolStripMenuItem
-            // 
-            this.separadorCamaraToolStripMenuItem.Name = "separadorCamaraToolStripMenuItem";
-            this.separadorCamaraToolStripMenuItem.Size = new System.Drawing.Size(240, 6);
-            // 
-            // reconectarToolStripMenuItem
-            // 
-            this.reconectarToolStripMenuItem.Name = "reconectarToolStripMenuItem";
-            this.reconectarToolStripMenuItem.Size = new System.Drawing.Size(243, 24);
-            this.reconectarToolStripMenuItem.Text = "🔁  Reconectar cámara";
-            this.reconectarToolStripMenuItem.Click += new System.EventHandler(this.reconectarToolStripMenuItem_Click);
-            // 
-            // verToolStripMenuItem
-            // 
-            this.verToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.visorToolStripMenuItem,
-            this.carpetaToolStripMenuItem});
-            this.verToolStripMenuItem.Name = "verToolStripMenuItem";
-            this.verToolStripMenuItem.Size = new System.Drawing.Size(41, 23);
-            this.verToolStripMenuItem.Text = "Ver";
-            // 
             // visorToolStripMenuItem
             // 
             this.visorToolStripMenuItem.Name = "visorToolStripMenuItem";
@@ -227,10 +195,12 @@ namespace FACTicket_Scanner
             this.conversorIMGPDFToolStripMenuItem,
             this.analizarPhashDeTodasLasFacturasToolStripMenuItem,
             this.buscarDuplicadosToolStripMenuItem,
-            this.cerrarTrimestreToolStripMenuItem});
+            this.separadorHerramientasToolStripMenuItem,
+            this.visorToolStripMenuItem,
+            this.carpetaToolStripMenuItem});
             this.utilidadesToolStripMenuItem.Name = "utilidadesToolStripMenuItem";
-            this.utilidadesToolStripMenuItem.Size = new System.Drawing.Size(81, 23);
-            this.utilidadesToolStripMenuItem.Text = "Utilidades";
+            this.utilidadesToolStripMenuItem.Size = new System.Drawing.Size(100, 23);
+            this.utilidadesToolStripMenuItem.Text = "Herramientas";
             // 
             // conversorIMGPDFToolStripMenuItem
             // 
@@ -256,16 +226,18 @@ namespace FACTicket_Scanner
             // aPIToolStripMenuItem
             // 
             this.aPIToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.generalToolStripMenuItem,
+            this.separadorAjustesToolStripMenuItem,
             this.editarClavesAPIToolStripMenuItem});
             this.aPIToolStripMenuItem.Name = "aPIToolStripMenuItem";
-            this.aPIToolStripMenuItem.Size = new System.Drawing.Size(42, 23);
-            this.aPIToolStripMenuItem.Text = "API";
+            this.aPIToolStripMenuItem.Size = new System.Drawing.Size(66, 23);
+            this.aPIToolStripMenuItem.Text = "Ajustes";
             // 
             // editarClavesAPIToolStripMenuItem
             // 
             this.editarClavesAPIToolStripMenuItem.Name = "editarClavesAPIToolStripMenuItem";
             this.editarClavesAPIToolStripMenuItem.Size = new System.Drawing.Size(178, 24);
-            this.editarClavesAPIToolStripMenuItem.Text = "Editar claves API";
+            this.editarClavesAPIToolStripMenuItem.Text = "Claves API";
             this.editarClavesAPIToolStripMenuItem.Click += new System.EventHandler(this.editarClavesAPIToolStripMenuItem_Click);
             // 
             // ayudaToolStripMenuItem
@@ -614,6 +586,23 @@ namespace FACTicket_Scanner
             this.cerrarTrimestreToolStripMenuItem.Text = "Cerrar Trimestre";
             this.cerrarTrimestreToolStripMenuItem.Click += new System.EventHandler(this.cerrarTrimestreToolStripMenuItem_Click);
             // 
+            // separadorHerramientasToolStripMenuItem
+            // 
+            this.separadorHerramientasToolStripMenuItem.Name = "separadorHerramientasToolStripMenuItem";
+            this.separadorHerramientasToolStripMenuItem.Size = new System.Drawing.Size(293, 6);
+            // 
+            // generalToolStripMenuItem
+            // 
+            this.generalToolStripMenuItem.Name = "generalToolStripMenuItem";
+            this.generalToolStripMenuItem.Size = new System.Drawing.Size(178, 24);
+            this.generalToolStripMenuItem.Text = "General";
+            this.generalToolStripMenuItem.Click += new System.EventHandler(this.generalToolStripMenuItem_Click);
+            // 
+            // separadorAjustesToolStripMenuItem
+            // 
+            this.separadorAjustesToolStripMenuItem.Name = "separadorAjustesToolStripMenuItem";
+            this.separadorAjustesToolStripMenuItem.Size = new System.Drawing.Size(175, 6);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -650,12 +639,6 @@ namespace FACTicket_Scanner
         private System.Windows.Forms.ToolStripMenuItem guardarToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator separadorArchivoToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem salirToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem camaraMenuToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem camaraToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem camarasIpToolStripMenuItem;
-        private System.Windows.Forms.ToolStripSeparator separadorCamaraToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem reconectarToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem verToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem visorToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem carpetaToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem ayudaToolStripMenuItem;
@@ -699,5 +682,10 @@ namespace FACTicket_Scanner
         private System.Windows.Forms.ToolStripMenuItem exportarToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem buscarDuplicadosToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem cerrarTrimestreToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem generalToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem importarToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem desdeCamaraToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator separadorHerramientasToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator separadorAjustesToolStripMenuItem;
     }
 }
