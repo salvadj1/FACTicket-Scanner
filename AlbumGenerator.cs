@@ -790,7 +790,7 @@ namespace FACTicket_Scanner
 
         // Umbral: por debajo de estos bits distintos (de 63) se considera la
         // misma foto. Ajustable si da falsos positivos/negativos en la práctica.
-        private const int UMBRAL_PHASH = 8;
+        private const int UMBRAL_PHASH = 2;
 
         // -----------------------------------------------------------------------
         // Recorre todas las facturas guardadas y (re)calcula el pHash de su
