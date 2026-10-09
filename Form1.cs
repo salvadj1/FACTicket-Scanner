@@ -41,6 +41,7 @@ namespace FACTicket_Scanner
         private List<string> colaArchivos = new();
         private int indiceColaActual = -1;
         private string? rutaJsonEdicionActual = null; // != null mientras se edita una factura desde el visor
+        private string? rutaJsonVisorParaReabrir = null; // ruta (relativa, como la usa el visor) de la factura editada, para reabrirla al terminar
 
         // --- Zoom interactivo sobre la imagen (rueda del ratón) ---
         private float zoomFactor = 1.0f;
@@ -824,12 +825,14 @@ namespace FACTicket_Scanner
                 this.UseWaitCursor = true;
                 lblEstado.Text = "🔎 Reescaneando y extrayendo datos con Gemini...";
 
+                bool editadoOk = false;
                 try
                 {
                     await album.EditarFacturaCompleta(rutaJsonEnCurso, copiaImgEdicion, copiaOriginalEdicion,
                         panelGuardar.chkGuardarOriginal.Checked, panelGuardar.chkGuardarJpg.Checked,
                         panelGuardar.chkGuardarPdf.Checked, panelGuardar.chkExtraerGemini.Checked, MostrarRevisionEmbebida);
                     lblEstado.Text = "✅ Factura actualizada.";
+                    editadoOk = true;
                     DialogoAutoConfirmar.Aviso("La factura se editó y guardó correctamente.", "Éxito", 2, exito: true);
                 }
                 catch (Exception ex)
@@ -847,6 +850,10 @@ namespace FACTicket_Scanner
                     panelAjustes.Visible = true;     
                     LimpiarImagenActual();
                     VolverALive();
+
+                    // Editada con éxito: vuelve al visor con la lista recargada y la factura abierta.
+                    if (editadoOk) ReabrirVisorTrasEdicion();
+                    else rutaJsonVisorParaReabrir = null;
                 }
                 return;
             }
@@ -1399,6 +1406,48 @@ namespace FACTicket_Scanner
             }
         }
 
+        // -----------------------------------------------------------------------
+        // Tras editar una factura desde el visor: regenera el álbum, vuelve a mostrar
+        // el visor y, cuando la página termina de cargar, abre de nuevo el modal de
+        // la factura editada (la busca por su ruta de datos.json). Si no la encuentra
+        // el visor simplemente queda abierto en el listado.
+        // -----------------------------------------------------------------------
+        private async void ReabrirVisorTrasEdicion()
+        {
+            string? ruta = rutaJsonVisorParaReabrir;
+            rutaJsonVisorParaReabrir = null;
+            try
+            {
+                panelNavModal.Visible = false;
+                album.RegenerarAlbumInicial();
+                await webViewAlbum.EnsureCoreWebView2Async();
+
+                if (!string.IsNullOrEmpty(ruta))
+                {
+                    // Un solo uso: se desuscribe al terminar la primera navegación.
+                    async void AlCargar(object? s, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs e)
+                    {
+                        webViewAlbum.CoreWebView2.NavigationCompleted -= AlCargar;
+                        try
+                        {
+                            await System.Threading.Tasks.Task.Delay(300); // deja que el JS de la página construya el listado
+                            string rutaJs = System.Text.Json.JsonSerializer.Serialize(ruta);
+                            await webViewAlbum.CoreWebView2.ExecuteScriptAsync(
+                                "try{var i=tickets.findIndex(function(t){return t.json===" + rutaJs + "});if(i>=0)abrirModal(i);}catch(e){}");
+                        }
+                        catch { }
+                    }
+                    webViewAlbum.CoreWebView2.NavigationCompleted += AlCargar;
+                }
+
+                visorToolStripMenuItem_Click(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                Log("ReabrirVisorTrasEdicion: error - " + ex.Message);
+            }
+        }
+
         // Botón ⟳ del toolbar del visor
         private void btnRecargarVisor_Click(object? sender, EventArgs e) => RecargarVisor();
 
@@ -1584,8 +1633,16 @@ namespace FACTicket_Scanner
                 return;
             }
 
+            string? rutaJsonVisor = rutaJsonVisorActual; // se guarda antes de cerrar el visor
             btnCerrarVisor_Click(null, EventArgs.Empty);
-            await AbrirEditorTicketAsync(img, rutaJsonAbs);
+            bool editadaOk = await AbrirEditorTicketAsync(img, rutaJsonAbs);
+
+            // Editada con éxito: vuelve al visor con la lista recargada y la factura abierta.
+            if (editadaOk)
+            {
+                rutaJsonVisorParaReabrir = rutaJsonVisor;
+                ReabrirVisorTrasEdicion();
+            }
         }
 
         // -----------------------------------------------------------------------
@@ -1595,14 +1652,14 @@ namespace FACTicket_Scanner
         // pulsar Guardar se persiste sobre la MISMA carpeta (sin Gemini).
         // Toma posesión de 'img' (la libera al terminar).
         // -----------------------------------------------------------------------
-        private async System.Threading.Tasks.Task AbrirEditorTicketAsync(Mat img, string rutaJsonAbs)
+        private async System.Threading.Tasks.Task<bool> AbrirEditorTicketAsync(Mat img, string rutaJsonAbs)
         {
             var datosIniciales = DatosTicket.CargarUnico(rutaJsonAbs);
             if (datosIniciales == null)
             {
                 img.Dispose();
                 MessageBox.Show("No se pudo leer el JSON de esta factura.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                return false;
             }
 
             // Controles propios del editor, inicializados con ajustes automáticos.
@@ -1654,12 +1711,13 @@ namespace FACTicket_Scanner
             {
                 editor.Dispose();
                 img.Dispose();
-                return;
+                return false;
             }
 
             var datosFinales = panelDatos.ObtenerDatosEditados();
             Mat copiaProcesada = editor.ImagenProcesada.Clone();
             editor.Dispose();
+            bool exito = false;
             this.UseWaitCursor = true;
             try
             {
@@ -1669,6 +1727,7 @@ namespace FACTicket_Scanner
                     panelGuardar.chkGuardarPdf.Checked, false,
                     _ => System.Threading.Tasks.Task.FromResult<DatosTicket?>(datosFinales));
                 lblEstado.Text = "✅ Factura actualizada.";
+                exito = true;
                 DialogoAutoConfirmar.Aviso("La factura se editó y guardó correctamente.", "Éxito", 2, exito: true);
             }
             catch (Exception ex)
@@ -1681,6 +1740,7 @@ namespace FACTicket_Scanner
                 img.Dispose();
                 this.UseWaitCursor = false;
             }
+            return exito;
         }
         /*private async void btnEditarVisor_Click(object? sender, EventArgs e)
         {
@@ -1710,6 +1770,7 @@ namespace FACTicket_Scanner
                 return;
             }
 
+            rutaJsonVisorParaReabrir = rutaJsonVisorActual; // se guarda antes de cerrar el visor
             btnCerrarVisor_Click(null, EventArgs.Empty);
 
             rutaJsonEdicionActual = rutaJsonAbs;
