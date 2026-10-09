@@ -42,9 +42,14 @@ namespace FACTicket_Scanner
             "yyyy-MM-dd", "dd/MM/yyyy", "dd-MM-yyyy", "MM/dd/yyyy", "yyyy/MM/dd"
         };
 
-        public ExportarForm(string? carpetaTickets = null)
+        // Preferencias de exportación (formato preseleccionado, carpeta inicial y
+        // abrir carpeta al terminar). Si es null se usan los valores clásicos.
+        private readonly AjustesEscaner? _ajustes;
+
+        public ExportarForm(string? carpetaTickets = null, AjustesEscaner? ajustes = null)
         {
             _carpetaTickets = carpetaTickets ?? Path.Combine(AppContext.BaseDirectory, "Facturas");
+            _ajustes = ajustes;
 
             Text = "Exportar documentos";
             FormBorderStyle = FormBorderStyle.Sizable;
@@ -55,6 +60,7 @@ namespace FACTicket_Scanner
             Font = new System.Drawing.Font("Segoe UI", 9F);
 
             ConstruirUi();
+            AplicarFormatoPorDefecto();
             CargarFacturasDesdeDisco();
             PoblarEmpresas();
             AplicarFiltro();
@@ -189,6 +195,20 @@ namespace FACTicket_Scanner
                 clbFacturas.SetItemChecked(i, marcar);
         }
 
+        // -----------------------------------------------------------------------
+        // Marca los tipos de archivo según el ajuste "Formato por defecto":
+        // "TODO" (PDF + JSON + JPG procesado), "PDF", "JSON", "JPG" u "ORIGINAL".
+        // -----------------------------------------------------------------------
+        private void AplicarFormatoPorDefecto()
+        {
+            string f = _ajustes?.FormatoExportacion ?? "TODO";
+            if (f == "TODO") return; // estado inicial clásico (PDF, JSON y JPG procesado)
+            chkPdf.Checked = f == "PDF";
+            chkJson.Checked = f == "JSON";
+            chkJpg.Checked = f == "JPG";
+            chkOriginal.Checked = f == "ORIGINAL";
+        }
+
         private async System.Threading.Tasks.Task ExportarAsync()
         {
             var seleccionadas = clbFacturas.CheckedItems.Cast<FacturaListItem>().ToList();
@@ -208,6 +228,8 @@ namespace FACTicket_Scanner
                 Filter = "Archivo ZIP (*.zip)|*.zip",
                 FileName = $"export_{DateTime.Now:yyyyMMdd_HHmmss}.zip"
             };
+            if (!string.IsNullOrWhiteSpace(_ajustes?.CarpetaExportacion) && Directory.Exists(_ajustes!.CarpetaExportacion))
+                dlg.InitialDirectory = _ajustes.CarpetaExportacion;
             if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
             btnExportar.Enabled = false;
@@ -234,6 +256,8 @@ namespace FACTicket_Scanner
                 });
 
                 lblEstado.Text = "Descarga completada.";
+                if (_ajustes?.AbrirCarpetaAlExportar == true)
+                    ExportadorArchivos.AbrirCarpetaConArchivo(dlg.FileName);
             }
             catch (Exception ex)
             {

@@ -194,6 +194,7 @@ namespace FACTicket_Scanner
 
             album = new AlbumGenerator(NombreCarpeta, NombreAlbum, NombreDatos);
             ajustes = album.CargarAjustes();
+            AplicarAjustesGlobales();
 
             // Suscribir eventos de CameraManager
             camara.FrameReady += Camara_FrameReady;
@@ -205,10 +206,14 @@ namespace FACTicket_Scanner
             this.Load += (s, e) =>
             {
                 panelIzquierdo.Width = this.ClientSize.Width * 55 / 100;
+                // Tipo de cámara por defecto (Ajustes > Cámara): preselecciona IP si era la recordada.
+                if (ajustes.UltimoTipoCamara == "IP") cmbTipoCamara.SelectedIndex = 1;
                 txtUrlCamara.Text = ajustes.UltimaUrlCamaraIp;
                 ConstruirPanelDerecho();
                 album.RegenerarAlbumInicial();
                 MostrarLogo();
+                // Ajustes > Cámara > "Reconectar la última al iniciar"
+                if (ajustes.ReconectarCamaraAlIniciar) ReconectarUltimaCamara();
             };
 
             this.Resize += (s, e) =>
@@ -217,8 +222,8 @@ namespace FACTicket_Scanner
                 if (zoomFactor > ZOOM_MIN) AplicarZoom();
             };
 
-            //Visualizar tickets al iniciar
-            visorToolStripMenuItem_Click(null, null);
+            // Visualizar tickets al iniciar (Ajustes > General > "Abrir el visor web al iniciar")
+            if (ajustes.AbrirVisorAlIniciar) visorToolStripMenuItem_Click(null, null);
         }
 
         // -----------------------------------------------------------------------
@@ -376,9 +381,10 @@ namespace FACTicket_Scanner
         private void IniciarAutoGuardadoLote()
         {
             CancelarAutoGuardadoLote();
+            if (!ajustes.AutoguardadoLote) return; // desactivado en Ajustes > Escaneo
             if (colaArchivos.Count <= 1) return; // solo en lote real (>1 imagen)
 
-            segundosAutoGuardarLote = 5;
+            segundosAutoGuardarLote = Math.Max(1, ajustes.SegundosCuentaAtras);
             ActualizarTextoAutoGuardado();
 
             timerAutoGuardarLote = new System.Windows.Forms.Timer { Interval = 1000 };
@@ -628,7 +634,7 @@ namespace FACTicket_Scanner
                 Log("BtnCapturar_Click: frame clonado OK, size=" + fotoCapturada.Size());
 
                 Log("BtnCapturar_Click: llamando CalcularAjustesAutomaticos");
-                var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
+                var (autoContraste, autoBrillo, autoRuido) = ObtenerAjustesAutomaticos(fotoCapturada);
                 Log("BtnCapturar_Click: CalcularAjustesAutomaticos OK");
                 panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
                 panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
@@ -694,7 +700,7 @@ namespace FACTicket_Scanner
                  Log("BtnCapturar_Click: frame clonado OK, size=" + fotoCapturada.Size());
 
                  Log("BtnCapturar_Click: llamando CalcularAjustesAutomaticos");
-                 var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
+                 var (autoContraste, autoBrillo, autoRuido) = ObtenerAjustesAutomaticos(fotoCapturada);
                  Log("BtnCapturar_Click: CalcularAjustesAutomaticos OK");
                  panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
                  panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
@@ -1067,7 +1073,7 @@ namespace FACTicket_Scanner
                 modoCaptura = true;
                 ResetearZoom();
 
-                var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
+                var (autoContraste, autoBrillo, autoRuido) = ObtenerAjustesAutomaticos(fotoCapturada);
                 panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
                 panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
                 panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
@@ -1154,7 +1160,7 @@ namespace FACTicket_Scanner
                 modoCaptura = true;
                 ResetearZoom();
 
-                var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
+                var (autoContraste, autoBrillo, autoRuido) = ObtenerAjustesAutomaticos(fotoCapturada);
                 panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
                 panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
                 panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
@@ -1219,6 +1225,15 @@ namespace FACTicket_Scanner
         // -----------------------------------------------------------------------
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            // Ajustes > General > "Confirmar antes de salir": solo cuando cierra el usuario.
+            if (ajustes.ConfirmarAlSalir && e.CloseReason == CloseReason.UserClosing &&
+                MessageBox.Show(this, "¿Seguro que quieres salir de FACTicket Scanner?", "Salir",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+
             camara.Dispose();
             fotoCapturada?.Dispose();
             resultadoProcesado?.Dispose();
@@ -1453,7 +1468,8 @@ namespace FACTicket_Scanner
                     string filtroArchivo = root.TryGetProperty("filtro", out var fl) ? fl.GetString() ?? "Todos los archivos (*.*)|*.*" : "Todos los archivos (*.*)|*.*";
                     BeginInvoke(new Action(() =>
                     {
-                        string? guardado = ExportadorArchivos.GuardarTextoConDialogo(this, nombreArchivo, contenidoArchivo, filtroArchivo);
+                        string? guardado = ExportadorArchivos.GuardarTextoConDialogo(this, nombreArchivo, contenidoArchivo, filtroArchivo,
+                            carpetaInicial: ajustes.CarpetaExportacion, abrirCarpeta: ajustes.AbrirCarpetaAlExportar);
                         if (guardado != null) Log("Visor: exportado " + guardado);
                     }));
                     return;
@@ -1591,7 +1607,7 @@ namespace FACTicket_Scanner
 
             // Controles propios del editor, inicializados con ajustes automáticos.
             var controles = new PanelAjustesEscaneo { Dock = DockStyle.Fill };
-            var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(img);
+            var (autoContraste, autoBrillo, autoRuido) = ObtenerAjustesAutomaticos(img);
             controles.trkContraste.Value = Math.Min(controles.trkContraste.Maximum, Math.Max(controles.trkContraste.Minimum, autoContraste));
             controles.trkBrillo.Value = Math.Min(controles.trkBrillo.Maximum, Math.Max(controles.trkBrillo.Minimum, autoBrillo));
             controles.trkRuido.Value = Math.Min(controles.trkRuido.Maximum, Math.Max(controles.trkRuido.Minimum, autoRuido + 1));
@@ -1706,7 +1722,7 @@ namespace FACTicket_Scanner
             modoCaptura = true;
             ResetearZoom();
 
-            var (autoContraste, autoBrillo, autoRuido) = ImageProcessor.CalcularAjustesAutomaticos(fotoCapturada);
+            var (autoContraste, autoBrillo, autoRuido) = ObtenerAjustesAutomaticos(fotoCapturada);
             panelAjustes.trkContraste.Value = Math.Min(panelAjustes.trkContraste.Maximum, Math.Max(panelAjustes.trkContraste.Minimum, autoContraste));
             panelAjustes.trkBrillo.Value = Math.Min(panelAjustes.trkBrillo.Maximum, Math.Max(panelAjustes.trkBrillo.Minimum, autoBrillo));
             panelAjustes.trkRuido.Value = Math.Min(panelAjustes.trkRuido.Maximum, Math.Max(panelAjustes.trkRuido.Minimum, autoRuido + 1));
@@ -1882,8 +1898,30 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
-        // Menú: Ajustes > General (ventana con Generales, Cámara, Duplicados,
-        // Escaneo y Exportación). Al aceptar, persiste en ajustes.json y refresca
+        // Traslada a las clases globales los ajustes que no consulta Form1 directamente
+        // (cuenta atrás de los diálogos). Se llama al cargar y al aceptar Ajustes.
+        // -----------------------------------------------------------------------
+        private void AplicarAjustesGlobales()
+        {
+            CuentaAtrasConfig.Aplicar(ajustes.AutoConfirmarTrasCuentaAtras, ajustes.SegundosCuentaAtras);
+        }
+
+        // -----------------------------------------------------------------------
+        // Contraste, brillo y ruido iniciales de una imagen recién cargada o capturada.
+        // Con "Contraste y brillo automáticos" activo se calculan a partir de la foto;
+        // si está desactivado se usan los valores neutros de ajustes (el ruido sigue
+        // siendo automático).
+        // -----------------------------------------------------------------------
+        private (int contraste, int brillo, int ruido) ObtenerAjustesAutomaticos(Mat imagen)
+        {
+            var auto = ImageProcessor.CalcularAjustesAutomaticos(imagen);
+            if (ajustes.ContrasteBrilloAutomaticos) return auto;
+            return (ajustes.Contraste, ajustes.Brillo, auto.ruido);
+        }
+
+        // -----------------------------------------------------------------------
+        // Menú: Ajustes > General (lista única: General, Cámara, Duplicados,
+        // Escaneo, Exportación y Claves API). Al aceptar, persiste en ajustes.json y refresca
         // lo que ya está en pantalla (reglas de duplicados y texto de la cámara).
         // -----------------------------------------------------------------------
         private void generalToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1899,6 +1937,7 @@ namespace FACTicket_Scanner
             bool aceptado = form.ShowDialog(this) == DialogResult.OK;
             ajustes = aceptado ? form.Resultado : album.CargarAjustes();
             if (aceptado) album.GuardarAjustes(ajustes);
+            AplicarAjustesGlobales();
 
             // Reglas de duplicados: no dispara ReglasCambiadas (no hay doble guardado).
             panelGuardar?.AplicarReglasDuplicados(new ReglasDuplicados
@@ -1986,7 +2025,7 @@ namespace FACTicket_Scanner
         }
         private void exportarToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            using var form = new ExportarForm();
+            using var form = new ExportarForm(null, ajustes);
             form.ShowDialog(this);
         }
     }

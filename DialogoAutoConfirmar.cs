@@ -68,6 +68,7 @@ namespace FACTicket_Scanner
 
             dlg.Shown += (s, e) => (resultadoPorDefecto ? btnSi : btnNo).Focus();
 
+            segundos = CuentaAtrasConfig.SegundosEfectivos(segundos, Form1.Timeout_Dialogos);
             int restantes = segundos;
             lblContador.Actualizar($"Se autoconfirmará en {restantes}s...", restantes);
             using var timer = new Timer { Interval = 1000 };
@@ -83,7 +84,10 @@ namespace FACTicket_Scanner
                 }
                 lblContador.Actualizar($"Se autoconfirmará en {restantes}s...", restantes);
             };
-            dlg.Shown += (s, e) => timer.Start();
+            // Si el ajuste "Auto-confirmar tras la cuenta atrás" está desactivado, no se
+            // arranca el temporizador: el diálogo espera a que el usuario decida.
+            if (CuentaAtrasConfig.Activa) dlg.Shown += (s, e) => timer.Start();
+            else lblContador.Detener("Sin cuenta atrás: decide tú.");
             btnSi.Click += (s, e) => timer.Stop();
             btnNo.Click += (s, e) => timer.Stop();
             btnX.Click += (s, e) => { timer.Stop(); dlg.DialogResult = resultadoPorDefecto ? DialogResult.Yes : DialogResult.No; dlg.Close(); };
@@ -270,6 +274,7 @@ namespace FACTicket_Scanner
             };
 
             // --- Cuenta atrás (misma mecánica que Confirmar) ---
+            segundos = CuentaAtrasConfig.SegundosEfectivos(segundos, Form1.Timeout_Dialogos);
             int restantes = segundos;
             lblContador.Actualizar($"Se autoconfirmará en {restantes}s...", restantes);
             using var timer = new Timer { Interval = 1000 };
@@ -285,7 +290,10 @@ namespace FACTicket_Scanner
                 }
                 lblContador.Actualizar($"Se autoconfirmará en {restantes}s...", restantes);
             };
-            dlg.Shown += (s, e) => timer.Start();
+            // Si el ajuste "Auto-confirmar tras la cuenta atrás" está desactivado, no se
+            // arranca el temporizador: el diálogo espera a que el usuario decida.
+            if (CuentaAtrasConfig.Activa) dlg.Shown += (s, e) => timer.Start();
+            else lblContador.Detener("Sin cuenta atrás: decide tú.");
             btnSi.Click += (s, e) => timer.Stop();
             btnNo.Click += (s, e) => timer.Stop();
 
@@ -391,6 +399,7 @@ namespace FACTicket_Scanner
             btnOk.Location = new System.Drawing.Point(150, yBoton);
             dlg.ClientSize = new System.Drawing.Size(dlg.ClientSize.Width, yBoton + 34 + 15);
 
+            segundos = CuentaAtrasConfig.SegundosEfectivos(segundos, Form1.Timeout_Dialogos);
             int restantes = segundos;
             lblContador.Actualizar($"Se cerrará en {restantes}s...", restantes);
             using var timer = new Timer { Interval = 1000 };

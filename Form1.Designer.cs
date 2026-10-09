@@ -95,13 +95,7 @@ namespace FACTicket_Scanner
             this.btnGuardarRapido,
             this.separadorToolbar2ToolStripMenuItem,
             this.btnCarpetaRapida,
-            this.btnVisorRapido,
-            this.separadorToolbarToolStripMenuItem,
-            this.cmbTipoCamara,
-            this.txtUrlCamara,
-            this.cmbResultadoCamara,
-            this.btnBuscarCamara,
-            this.btnReconectarRapido});
+            this.btnVisorRapido});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
             this.menuStrip1.ShowItemToolTips = true;

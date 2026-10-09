@@ -98,6 +98,101 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
+        // Acceso simplificado a la API de Gemini (usado por Ajustes > Claves API).
+        // El modelo no se guarda aparte: forma parte de la URL del endpoint
+        //   https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent
+        // así que estos métodos lo leen/escriben dentro de esa URL y el resto de la
+        // aplicación (ExtraerDatosFactura, menú de gestión de APIs) sigue igual.
+        // -----------------------------------------------------------------------
+        private const string PlantillaUrlGemini =
+            "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent";
+        public const string ModeloGeminiPorDefecto = "gemini-2.0-flash";
+
+        // Devuelve la API de Gemini guardada (por URL o nombre) o null si no hay ninguna.
+        private static ApiConfig? BuscarApiGemini(ApiListaGuardada lista) =>
+            lista.Apis.FirstOrDefault(a => a.Url.Contains("generativelanguage.googleapis.com", StringComparison.OrdinalIgnoreCase))
+            ?? lista.Apis.FirstOrDefault(a => a.Nombre.Contains("gemini", StringComparison.OrdinalIgnoreCase));
+
+        // Extrae el nombre del modelo de una URL de endpoint ("" si no se reconoce).
+        public static string ExtraerModeloDeUrl(string url)
+        {
+            int i = url.IndexOf("/models/", StringComparison.OrdinalIgnoreCase);
+            if (i < 0) return "";
+            string resto = url.Substring(i + 8);
+            int fin = resto.IndexOfAny(new[] { ':', '?', '/' });
+            return fin >= 0 ? resto.Substring(0, fin) : resto;
+        }
+
+        // -----------------------------------------------------------------------
+        // Lee la clave y el modelo de Gemini guardados. Si no hay ninguna API de
+        // Gemini devuelve clave vacía y el modelo por defecto.
+        // -----------------------------------------------------------------------
+        public static (string Clave, string Modelo) ObtenerClaveYModeloGemini()
+        {
+            var api = BuscarApiGemini(CargarApis());
+            if (api == null) return ("", ModeloGeminiPorDefecto);
+            string modelo = ExtraerModeloDeUrl(api.Url);
+            return (api.ApiKey, string.IsNullOrWhiteSpace(modelo) ? ModeloGeminiPorDefecto : modelo);
+        }
+
+        // -----------------------------------------------------------------------
+        // Guarda clave y modelo de Gemini. Si ya existe una API de Gemini la
+        // actualiza (conservando sus contadores); si no, crea una llamada "Gemini"
+        // y, si no había ninguna activa, la deja como activa.
+        // -----------------------------------------------------------------------
+        public static void GuardarClaveYModeloGemini(string clave, string modelo)
+        {
+            clave = clave.Trim();
+            modelo = string.IsNullOrWhiteSpace(modelo) ? ModeloGeminiPorDefecto : modelo.Trim();
+            string url = string.Format(PlantillaUrlGemini, modelo);
+
+            var lista = CargarApis();
+            var api = BuscarApiGemini(lista);
+            if (api == null)
+            {
+                api = new ApiConfig { Nombre = "Gemini" };
+                lista.Apis.Add(api);
+                if (string.IsNullOrEmpty(lista.ActivaNombre)) lista.ActivaNombre = api.Nombre;
+            }
+            api.Url = url;
+            api.ApiKey = clave;
+            GuardarApis(lista);
+        }
+
+        // -----------------------------------------------------------------------
+        // Prueba la conexión con una petición mínima (sin tocar apis.json).
+        // Devuelve (true, mensaje) si Gemini responde bien, o (false, motivo).
+        // -----------------------------------------------------------------------
+        public static async Task<(bool Ok, string Mensaje)> ProbarConexionGemini(string clave, string modelo)
+        {
+            if (string.IsNullOrWhiteSpace(clave)) return (false, "Escribe primero la clave de Gemini.");
+            if (string.IsNullOrWhiteSpace(modelo)) modelo = ModeloGeminiPorDefecto;
+
+            try
+            {
+                string url = string.Format(PlantillaUrlGemini, modelo.Trim()) + "?key=" + clave.Trim();
+                var cuerpo = new { contents = new[] { new { parts = new[] { new { text = "Responde solo: OK" } } } } };
+                using var content = new StringContent(JsonSerializer.Serialize(cuerpo), Encoding.UTF8, "application/json");
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+                using var resp = await _httpClient.PostAsync(url, content, cts.Token);
+                if (resp.IsSuccessStatusCode) return (true, "Conexión correcta con " + modelo.Trim() + ".");
+
+                int codigo = (int)resp.StatusCode;
+                string motivo = codigo switch
+                {
+                    400 => "petición rechazada (¿clave o modelo no válidos?)",
+                    403 => "clave sin permisos o no válida",
+                    404 => "el modelo no existe",
+                    429 => "límite de uso alcanzado",
+                    _ => resp.ReasonPhrase ?? "error del servidor"
+                };
+                return (false, $"Error {codigo}: {motivo}.");
+            }
+            catch (TaskCanceledException) { return (false, "Tiempo de espera agotado (15 s)."); }
+            catch (Exception ex) { return (false, "No se pudo conectar: " + ex.Message); }
+        }
+
+        // -----------------------------------------------------------------------
         // Extrae datos de una factura/ticket usando la API activa
         // Devuelve un DatosTicket con todos los campos posibles rellenos
         // -----------------------------------------------------------------------
