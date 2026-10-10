@@ -108,6 +108,12 @@ namespace FACTicket_Scanner
         [JsonPropertyName("trimestre_presentado")]
         public string TrimestrePresentado { get; set; } = "";
 
+        // Momento en que se marcó como presentada ("yyyy-MM-dd HH:mm:ss"). Se rellena desde
+        // CierreTrimestralForm; vacío en las facturas presentadas antes de existir este campo
+        // (el menú principal usa entonces la fecha del archivo como cierre aproximado).
+        [JsonPropertyName("fecha_presentado")]
+        public string FechaPresentado { get; set; } = "";
+
         // Uso interno: diagnóstico de fallo OCR (Bug C). No se serializa al
         // JSON final porque JsonIgnore lo excluye explícitamente.
         [JsonIgnore]

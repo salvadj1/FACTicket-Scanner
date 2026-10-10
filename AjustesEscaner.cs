@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace FACTicket_Scanner
 {
@@ -65,6 +66,15 @@ namespace FACTicket_Scanner
         public string CarpetaExportacion { get; set; } = "";
         // Abre la carpeta en el Explorador al terminar de exportar.
         public bool AbrirCarpetaAlExportar { get; set; } = false;
+
+        // --- Menú principal ---
+        // Ids de las tarjetas del menú principal que el usuario ha ocultado desde
+        // "Personalizar" (ver MenuPrincipalHtml.IdsTarjetas). Vacía = se muestran todas.
+        public List<string> TarjetasMenuOcultas { get; set; } = new List<string>();
+
+        // Trimestre que muestra la tarjeta "Trimestre" del menú, formato "AAAA-N" (ej. "2026-2").
+        // Vacío = el trimestre anterior al actual, que avanza solo al cambiar de trimestre.
+        public string TrimestreTarjeta { get; set; } = "";
 
         // --- Valores de referencia del pipeline (YA NO se cargan por foto) ---
         public int BlockSize { get; set; } = 15;

@@ -268,6 +268,7 @@ namespace FACTicket_Scanner
                     {
                         item.Ticket.Presentado = presentar;
                         item.Ticket.TrimestrePresentado = presentar ? etiquetaTrimestre : "";
+                        item.Ticket.FechaPresentado = presentar ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") : "";
                         DatosTicket.GuardarUnico(item.RutaJson, item.Ticket);
                         ok++;
                     }

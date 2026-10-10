@@ -794,7 +794,7 @@ function empresaCarpeta(t){
 let vistaActual = 'empresa';
 let idxModal = -1;
 let listaFiltrada = [];
-let filtroEspecial = null; // null | 'sinTotal' | 'sinFecha' — activado desde Resumen
+let filtroEspecial = null; // null | 'sinTotal' | 'sinFecha' | 'porRevisar' — activado desde Resumen o desde el menú principal
 
 /* ─── Cambio de pestaña Facturas/Albaranes ─── */
 function resetSelectores(){
@@ -845,12 +845,16 @@ function renderStats(lista){
   const empresas = new Set(lista.map(empresaCarpeta).filter(Boolean));
   const sinTotal = lista.filter(t=>!t.total||num(t.total)===0).length;
   const sinFecha = lista.filter(t=>mesFecha(t)===0).length; // no aparecen en gráficos trimestrales
+  // Por revisar: sin empresa, sin importe o sin fecha legible (mismo criterio que la tarjeta del menú principal)
+  const porRevisar = lista.filter(esPorRevisar).length;
   const rows = [
     ['Gasto total', eur(total), 'azul', null],
     ['Documentos', lista.length, '', null],
     ['Empresas', empresas.size, '', null],
     ['Sin importe', sinTotal, sinTotal>0?'rojo':'', sinTotal>0?'sinTotal':null],
     ['Sin fecha (excl. gráficos)', sinFecha, sinFecha>0?'naranja':'', sinFecha>0?'sinFecha':null],
+    // Se mantiene clicable mientras su filtro esté activo, para poder quitarlo con otro clic
+    ['Por revisar', porRevisar, porRevisar>0?'naranja':'', (porRevisar>0||filtroEspecial==='porRevisar')?'porRevisar':null],
   ];
   document.getElementById('stats').innerHTML = rows.map(([l,v,c,accion])=>{
     const clic = accion ? ` clicable${filtroEspecial===accion?' activo':''}"" onclick=""filtrarEspecial('${accion}')""` : '""';
@@ -858,7 +862,11 @@ function renderStats(lista){
   }).join('');
 }
 
-// Alterna el filtro especial (sinTotal/sinFecha) desde Resumen: un segundo
+// true si el documento le faltan datos clave: sin empresa, sin importe o sin fecha legible.
+function esPorRevisar(t){
+  return (t.empresa||'').trim()==='' || num(t.total)<=0 || mesFecha(t)===0;
+}
+// Alterna el filtro especial (sinTotal/sinFecha/porRevisar) desde Resumen: un segundo
 // clic sobre la misma fila lo quita.
 function filtrarEspecial(tipo){
   filtroEspecial = (filtroEspecial===tipo) ? null : tipo;
@@ -1060,7 +1068,8 @@ function filtrar(){
     const okE = !empresa || empresaCarpeta(t)===empresa;
     const okEsp = !filtroEspecial
       || (filtroEspecial==='sinTotal' && (!t.total||num(t.total)===0))
-      || (filtroEspecial==='sinFecha' && mesFecha(t)===0);
+      || (filtroEspecial==='sinFecha' && mesFecha(t)===0)
+      || (filtroEspecial==='porRevisar' && esPorRevisar(t));
     return okQ && okA && okT && okE && okEsp && pasaAvanzado(t);
   });
   document.getElementById('contador').textContent = listaFiltrada.length+' resultado(s)';
