@@ -115,7 +115,13 @@ namespace FACTicket_Scanner
         // resumen. Mes/trimestre/año "actuales" se toman de hoy. Los albaranes
         // no cuentan (se guardan aparte y no suman gasto ni IVA).
         // -------------------------------------------------------------------
-        public static EstadisticasMenu CalcularEstadisticas(string carpetaFacturas, DateTime? hoy = null)
+        // 'progreso' (opcional) recibe, cada 'cadaN' archivos leídos y al terminar, los
+        // valores parciales de las tarjetas (ver ValoresTarjetas) para pintarlos
+        // progresivamente; se invoca desde el hilo que calcula. 'cancelado' (opcional)
+        // permite abortar el recorrido si ya no hace falta el resultado.
+        // -------------------------------------------------------------------
+        public static EstadisticasMenu CalcularEstadisticas(string carpetaFacturas, DateTime? hoy = null,
+            Action<Dictionary<string, string>>? progreso = null, int cadaN = 15, Func<bool>? cancelado = null)
         {
             var est = new EstadisticasMenu();
             if (!Directory.Exists(carpetaFacturas)) return est;
@@ -124,9 +130,34 @@ namespace FACTicket_Scanner
             int trimActual = (h.Month - 1) / 3;
             DateTime ultimaGuardada = DateTime.MinValue;
             var porEmpresa = new Dictionary<string, (string nombre, int n)>(StringComparer.OrdinalIgnoreCase);
+            int leidos = 0;
+
+            // Calcula los campos derivados (empresas, top, último guardado) con lo leído hasta ahora
+            void Resumir()
+            {
+                est.Empresas = porEmpresa.Count;
+                if (porEmpresa.Count > 0)
+                {
+                    var top = porEmpresa.Values.OrderByDescending(x => x.n).First();
+                    est.EmpresaTop = top.nombre;
+                    est.EmpresaTopFacturas = top.n;
+                }
+                if (ultimaGuardada != DateTime.MinValue)
+                    est.UltimaFecha = ultimaGuardada.ToString("dd/MM HH:mm", Es);
+            }
 
             foreach (string rutaJson in Directory.GetFiles(carpetaFacturas, "datos.json", SearchOption.AllDirectories))
             {
+                if (cancelado != null && cancelado()) return est;
+
+                // Informe parcial cada 'cadaN' archivos: las tarjetas se rellenan poco a poco
+                if (progreso != null && leidos > 0 && leidos % Math.Max(1, cadaN) == 0)
+                {
+                    Resumir();
+                    progreso(ValoresTarjetas(est));
+                }
+                leidos++;
+
                 DatosTicket? t = DatosTicket.CargarUnico(rutaJson);
                 if (t == null) continue;
                 if (string.Equals(t.TipoDocumento, "albaran", StringComparison.OrdinalIgnoreCase)) continue;
@@ -181,15 +212,8 @@ namespace FACTicket_Scanner
                 }
             }
 
-            est.Empresas = porEmpresa.Count;
-            if (porEmpresa.Count > 0)
-            {
-                var top = porEmpresa.Values.OrderByDescending(x => x.n).First();
-                est.EmpresaTop = top.nombre;
-                est.EmpresaTopFacturas = top.n;
-            }
-            if (ultimaGuardada != DateTime.MinValue)
-                est.UltimaFecha = ultimaGuardada.ToString("dd/MM HH:mm", Es);
+            Resumir();
+            progreso?.Invoke(ValoresTarjetas(est)); // valores definitivos
             return est;
         }
 
@@ -203,27 +227,55 @@ namespace FACTicket_Scanner
         // -------------------------------------------------------------------
         public static string Generar(EstadisticasMenu est, string version = "")
         {
-            return Plantilla
-                .Replace("{{HOY}}", N0(est.GuardadasHoy))
-                .Replace("{{MES}}", N0(est.FacturasMes))
-                .Replace("{{MESTOTAL}}", Eur(est.TotalMes))
-                .Replace("{{TRIM}}", N0(est.FacturasTrimestre))
-                .Replace("{{TRIMTOTAL}}", Eur(est.TotalTrimestre))
-                .Replace("{{ANIO}}", N0(est.FacturasAnio))
-                .Replace("{{ANIOTOTAL}}", Eur(est.TotalAnio))
-                .Replace("{{PEND}}", N0(est.Pendientes))
-                .Replace("{{REVISAR}}", N0(est.PorRevisar))
-                .Replace("{{CARA}}", est.MasCaraImporte > 0 ? Eur(est.MasCaraImporte) : "—")
-                .Replace("{{CARAEMP}}", Enc(est.MasCaraEmpresa, "sin datos"))
-                .Replace("{{MEDIA}}", est.FacturasTrimestre > 0 ? Eur(est.MediaTrimestre) : "—")
-                .Replace("{{IVA}}", "IVA " + Eur(est.IvaTrimestre))
-                .Replace("{{FACTURAS}}", N0(est.Facturas))
-                .Replace("{{EMPRESAS}}", N0(est.Empresas) + (est.Empresas == 1 ? " empresa" : " empresas"))
-                .Replace("{{TOP}}", Enc(est.EmpresaTop))
-                .Replace("{{TOPSUB}}", est.EmpresaTopFacturas > 0 ? N0(est.EmpresaTopFacturas) + " facturas" : "sin datos")
-                .Replace("{{ULT}}", Enc(est.UltimaEmpresa))
-                .Replace("{{ULTFECHA}}", Enc(est.UltimaFecha, "sin datos"))
-                .Replace("{{VERSION}}", WebUtility.HtmlEncode(version));
+            string html = Plantilla.Replace("{{VERSION}}", WebUtility.HtmlEncode(version));
+            foreach (var kv in ValoresTarjetas(est))
+                html = html.Replace("{{" + kv.Key + "}}", kv.Value);
+            return html;
+        }
+
+        // -------------------------------------------------------------------
+        // Devuelve el menú "esqueleto": mismo HTML, pero cada tarjeta lleva un
+        // marcador "…" (span con data-k=CLAVE) que se rellena después enviando a
+        // la página un mensaje JSON {CLAVE:"valor"} (PostWebMessageAsJson con el
+        // resultado de ValoresTarjetas). Permite mostrar el menú al instante, sin
+        // esperar al cálculo de estadísticas.
+        // -------------------------------------------------------------------
+        public static string GenerarEsqueleto(string version = "")
+        {
+            string html = Plantilla.Replace("{{VERSION}}", WebUtility.HtmlEncode(version));
+            foreach (string clave in ValoresTarjetas(new EstadisticasMenu()).Keys)
+                html = html.Replace("{{" + clave + "}}", "<span data-k='" + clave + "' class='ld'>…</span>");
+            return html;
+        }
+
+        // -------------------------------------------------------------------
+        // Valores (ya formateados y codificados en HTML) de cada tarjeta, por
+        // clave. Las claves coinciden con los marcadores {{CLAVE}} de la plantilla.
+        // -------------------------------------------------------------------
+        public static Dictionary<string, string> ValoresTarjetas(EstadisticasMenu est)
+        {
+            return new Dictionary<string, string>
+            {
+                ["HOY"] = N0(est.GuardadasHoy),
+                ["MES"] = N0(est.FacturasMes),
+                ["MESTOTAL"] = Eur(est.TotalMes),
+                ["TRIM"] = N0(est.FacturasTrimestre),
+                ["TRIMTOTAL"] = Eur(est.TotalTrimestre),
+                ["ANIO"] = N0(est.FacturasAnio),
+                ["ANIOTOTAL"] = Eur(est.TotalAnio),
+                ["PEND"] = N0(est.Pendientes),
+                ["REVISAR"] = N0(est.PorRevisar),
+                ["CARA"] = est.MasCaraImporte > 0 ? Eur(est.MasCaraImporte) : "—",
+                ["CARAEMP"] = Enc(est.MasCaraEmpresa, "sin datos"),
+                ["MEDIA"] = est.FacturasTrimestre > 0 ? Eur(est.MediaTrimestre) : "—",
+                ["IVA"] = "IVA " + Eur(est.IvaTrimestre),
+                ["FACTURAS"] = N0(est.Facturas),
+                ["EMPRESAS"] = N0(est.Empresas) + (est.Empresas == 1 ? " empresa" : " empresas"),
+                ["TOP"] = Enc(est.EmpresaTop),
+                ["TOPSUB"] = est.EmpresaTopFacturas > 0 ? N0(est.EmpresaTopFacturas) + " facturas" : "sin datos",
+                ["ULT"] = Enc(est.UltimaEmpresa),
+                ["ULTFECHA"] = Enc(est.UltimaFecha, "sin datos")
+            };
         }
 
         // Plantilla a pantalla completa: izquierda = accesos, derecha = resumen.
@@ -273,6 +325,9 @@ body{margin:0;background:var(--bg);color:var(--tx);font-family:'Segoe UI',system
 .m .s2{font-size:.78rem;color:var(--tx3);margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ft{margin-top:1.2rem;text-align:center;font-size:.78rem;color:var(--tx3)}
 [data-a]:focus-visible{outline:2px solid var(--acbd);outline-offset:2px}
+[data-k]{transition:opacity .3s}
+.ld{opacity:.35;animation:pl .9s ease-in-out infinite alternate}
+@keyframes pl{to{opacity:.7}}
 </style></head><body><div class='wrap'>
 <div class='top'>
   <div class='brand'><div class='logo'>🧾</div><div><h1>FACTicket Scanner</h1><p>Escanea, ordena y exporta tus facturas</p></div></div>
@@ -327,6 +382,7 @@ function ir(a){try{window.chrome.webview.postMessage({accion:a});}catch(e){}}
 document.addEventListener('click',function(e){var t=e.target.closest('[data-a]');if(t)ir(t.getAttribute('data-a'));});
 document.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){var t=e.target.closest('[data-a]');if(t){e.preventDefault();ir(t.getAttribute('data-a'));}}});
 document.addEventListener('contextmenu',function(e){e.preventDefault();});
+try{window.chrome.webview.addEventListener('message',function(e){var d=e.data;if(!d)return;for(var k in d){var l=document.querySelectorAll('[data-k='+k+']');for(var i=0;i<l.length;i++){l[i].innerHTML=d[k];l[i].classList.remove('ld');}}});}catch(x){}
 </script></body></html>";
     }
 }

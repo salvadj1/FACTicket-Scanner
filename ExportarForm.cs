@@ -504,59 +504,9 @@ namespace FACTicket_Scanner
         private (int documentos, int archivos, int faltantes) GenerarZip(string rutaZip, List<FacturaListItem> items,
             bool incPdf, bool incJson, bool incJpg, bool incOriginal)
         {
-            int archivos = 0, faltantes = 0;
-            var usados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var entradas = new List<AlbumExportador.EntradaAlbum>();
-
-            // ZipFile.Open(Create) falla si el archivo existe; el diálogo ya pidió confirmar la sobrescritura.
-            if (File.Exists(rutaZip)) File.Delete(rutaZip);
-
-            using (var zip = ZipFile.Open(rutaZip, ZipArchiveMode.Create))
-            {
-                // Copia un archivo a "Facturas/" y devuelve su ruta dentro del ZIP (null si no se copia).
-                string? Copiar(string baseNombre, string? rutaRelativa, bool incluir, string sufijo)
-                {
-                    if (!incluir || string.IsNullOrWhiteSpace(rutaRelativa)) return null;
-                    string origen = Path.Combine(_carpetaTickets, rutaRelativa);
-                    if (!File.Exists(origen)) { faltantes++; return null; }
-
-                    string nombre = AlbumExportador.NombreUnico(baseNombre + sufijo + Path.GetExtension(origen), usados);
-                    zip.CreateEntryFromFile(origen, "Facturas/" + nombre);
-                    archivos++;
-                    return "Facturas/" + nombre;
-                }
-
-                foreach (var item in items)
-                {
-                    var t = item.Ticket;
-                    string baseNombre = AlbumExportador.NombreBase(t);
-                    string carpeta = Path.GetDirectoryName(RutaRelativa(item.RutaJson)) ?? "";
-                    string relOriginal = Path.Combine(carpeta, "original.jpg").Replace('\\', '/');
-
-                    entradas.Add(AlbumExportador.CrearEntrada(t,
-                        Copiar(baseNombre, t.PdfRelativa, incPdf, ""),
-                        Copiar(baseNombre, t.ImagenRelativa, incJpg, ""),
-                        Copiar(baseNombre, relOriginal, incOriginal, "_original"),
-                        Copiar(baseNombre, t.JsonRelativa, incJson, "")));
-                }
-
-                var fechas = items
-                    .Select(i => FiltrosExportacion.ParsearFecha(i.Ticket.Fecha))
-                    .Where(f => f.HasValue)
-                    .Select(f => f.GetValueOrDefault())
-                    .ToList();
-                string rango = fechas.Count > 0
-                    ? $"Del {fechas.Min().ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)} al {fechas.Max().ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}"
-                    : "Sin fechas";
-                string subtitulo = $"{rango} · generado el {DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)}";
-
-                string html = AlbumExportador.GenerarHtml(entradas, "Álbum de facturas", subtitulo);
-                var entradaHtml = zip.CreateEntry("Album.html", CompressionLevel.Optimal);
-                using (var escritor = new StreamWriter(entradaHtml.Open(), new UTF8Encoding(false)))
-                    escritor.Write(html);
-            }
-
-            return (items.Count, archivos, faltantes);
+            // La lógica vive en AlbumExportador.GenerarZip para reutilizarla (p. ej. desde el panel web).
+            var docs = items.Select(i => (i.Ticket, i.RutaJson)).ToList();
+            return AlbumExportador.GenerarZip(_carpetaTickets, rutaZip, docs, incPdf, incJson, incJpg, incOriginal);
         }
 
         // Ruta de un archivo relativa a la carpeta de facturas, con '/' como separador.

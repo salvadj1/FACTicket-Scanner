@@ -215,7 +215,8 @@ namespace FACTicket_Scanner
                 if (ajustes.UltimoTipoCamara == "IP") cmbTipoCamara.SelectedIndex = 1;
                 txtUrlCamara.Text = ajustes.UltimaUrlCamaraIp;
                 ConstruirPanelDerecho();
-                album.RegenerarAlbumInicial();
+                // El álbum del panel web ya NO se regenera aquí: se genera la primera vez
+                // que se abre el panel de facturas (ver AsegurarAlbumGeneradoAsync).
                 MostrarLogo();
                 // Menú principal HTML al iniciar (salvo que se abra directamente el visor web)
                 if (!ajustes.AbrirVisorAlIniciar) MostrarMenuPrincipal();
@@ -1355,6 +1356,19 @@ namespace FACTicket_Scanner
         {
             try
             {
+                // Álbum diferido: si aún no se ha generado en esta sesión (o los datos
+                // cambiaron), se enseña ya el panel con un aviso y se genera sin bloquear la UI.
+                if (albumPendiente)
+                {
+                    panelIzquierdo.Visible = false;
+                    panelDerecho.Visible = false;
+                    panelVisor.Visible = true;
+                    panelVisor.BringToFront();
+                    btnCerrarVisor.Visible = true;
+                    lblEstadoVisor.Text = "⏳ Preparando panel de facturas...";
+                    await AsegurarAlbumGeneradoAsync();
+                }
+
                 string rutaHtml = Path.Combine(Application.StartupPath, NombreCarpeta, NombreAlbum);
 
                 if (!File.Exists(rutaHtml))
@@ -1422,7 +1436,7 @@ namespace FACTicket_Scanner
             try
             {
                 panelNavModal.Visible = false;   // el modal se cierra al recargar la página
-                album.RegenerarAlbumInicial();
+                RegenerarAlbumAhora();
                 visorToolStripMenuItem_Click(this, EventArgs.Empty);
             }
             catch (Exception ex)
@@ -1444,7 +1458,7 @@ namespace FACTicket_Scanner
             try
             {
                 panelNavModal.Visible = false;
-                album.RegenerarAlbumInicial();
+                RegenerarAlbumAhora();
                 await webViewAlbum.EnsureCoreWebView2Async();
 
                 if (!string.IsNullOrEmpty(ruta))
@@ -1546,6 +1560,21 @@ namespace FACTicket_Scanner
                             carpetaInicial: ajustes.CarpetaExportacion, abrirCarpeta: ajustes.AbrirCarpetaAlExportar);
                         if (guardado != null) Log("Visor: exportado " + guardado);
                     }));
+                    return;
+                }
+
+                // ZIP (PDF + Album.html) de los documentos que el panel tiene filtrados.
+                if (accion == "exportarZip")
+                {
+                    var rutasZip = new List<string>();
+                    if (root.TryGetProperty("jsons", out var arrZip) && arrZip.ValueKind == System.Text.Json.JsonValueKind.Array)
+                        foreach (var el in arrZip.EnumerateArray())
+                        {
+                            string? r = el.GetString();
+                            if (!string.IsNullOrWhiteSpace(r)) rutasZip.Add(r);
+                        }
+                    string tipoZip = root.TryGetProperty("tipo", out var tz) ? tz.GetString() ?? "documentos" : "documentos";
+                    BeginInvoke(new Action(async () => await ExportarZipDesdeVisorAsync(rutasZip, tipoZip)));
                     return;
                 }
 
@@ -1907,9 +1936,92 @@ namespace FACTicket_Scanner
             panelNavModal.Visible = false;
         }
 
+        // -----------------------------------------------------------------------
+        // Álbum diferido del panel web.
+        // albumPendiente = true significa que album.html no está al día (arranque
+        // de la app, o cambios en facturas con el panel cerrado). Se regenera solo
+        // cuando se abre el panel, en segundo plano. albumEnCurso evita generar dos
+        // veces a la vez si se pulsa el acceso varias veces seguidas.
+        // -----------------------------------------------------------------------
+        private bool albumPendiente = true;
+        private System.Threading.Tasks.Task? albumEnCurso = null;
+
+        // Regenera el álbum en un hilo secundario solo si está pendiente.
+        private async System.Threading.Tasks.Task AsegurarAlbumGeneradoAsync()
+        {
+            if (albumEnCurso != null) { await albumEnCurso; return; }
+            if (!albumPendiente) return;
+
+            albumEnCurso = System.Threading.Tasks.Task.Run(() => album.RegenerarAlbumInicial());
+            try
+            {
+                await albumEnCurso;
+                albumPendiente = false;
+            }
+            finally { albumEnCurso = null; }
+        }
+
+        // Regenera el álbum ya (síncrono) y lo marca como al día. Para los flujos que
+        // lo recargan inmediatamente después (botón ⟳, edición, borrado).
+        private void RegenerarAlbumAhora()
+        {
+            album.RegenerarAlbumInicial();
+            albumPendiente = false;
+        }
+
+        // -----------------------------------------------------------------------
+        // Exporta desde el panel web un ZIP con los PDF + Album.html de los
+        // documentos filtrados. 'rutasJson' son las rutas de datos.json relativas
+        // a la carpeta de facturas (tal como las usa el panel). Pide "Guardar como..."
+        // y genera el ZIP en un hilo secundario sin bloquear la interfaz.
+        // -----------------------------------------------------------------------
+        private async System.Threading.Tasks.Task ExportarZipDesdeVisorAsync(List<string> rutasJson, string tipo)
+        {
+            if (rutasJson.Count == 0) return;
+
+            string carpetaFacturas = Path.Combine(Application.StartupPath, NombreCarpeta);
+            using var dlg = new SaveFileDialog
+            {
+                Filter = "Archivo ZIP (*.zip)|*.zip",
+                FileName = $"FACTicket_{tipo}_{DateTime.Now:yyyyMMdd_HHmm}.zip"
+            };
+            if (!string.IsNullOrWhiteSpace(ajustes.CarpetaExportacion) && Directory.Exists(ajustes.CarpetaExportacion))
+                dlg.InitialDirectory = ajustes.CarpetaExportacion;
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            string rutaZip = dlg.FileName;
+            lblEstadoVisor.Text = "⏳ Generando ZIP...";
+            try
+            {
+                var res = await System.Threading.Tasks.Task.Run(() =>
+                {
+                    var docs = new List<(DatosTicket ticket, string rutaJson)>();
+                    foreach (string rel in rutasJson)
+                    {
+                        string abs = Path.Combine(carpetaFacturas, rel);
+                        var t = DatosTicket.CargarUnico(abs);
+                        if (t != null) docs.Add((t, abs));
+                    }
+                    // Solo PDF + álbum (si un documento no tiene PDF, se usa su JPG para que no salga vacío)
+                    return AlbumExportador.GenerarZip(carpetaFacturas, rutaZip, docs,
+                        incPdf: true, incJson: false, incJpg: false, incOriginal: false, imagenSiFaltaPdf: true);
+                });
+
+                lblEstadoVisor.Text = $"ZIP creado: {res.documentos} documento(s)" +
+                                      (res.faltantes > 0 ? $" ({res.faltantes} archivo(s) no encontrados)." : ".");
+                Log("Visor: ZIP exportado " + rutaZip);
+                if (ajustes.AbrirCarpetaAlExportar) ExportadorArchivos.AbrirCarpetaConArchivo(rutaZip);
+            }
+            catch (Exception ex)
+            {
+                lblEstadoVisor.Text = "Error generando el ZIP: " + ex.Message;
+                Log("Visor: error generando ZIP - " + ex.Message);
+            }
+        }
+
         private async System.Threading.Tasks.Task RegenerarAlbumYRecargarVisor()
         {
-            album.RegenerarAlbumInicial(); // reescanea Facturas/{Año}/{Empresa}/{Factura_x} en disco
+            RegenerarAlbumAhora(); // reescanea Facturas/{Año}/{Empresa}/{Factura_x} en disco
             try { await webViewAlbum.CoreWebView2.ExecuteScriptAsync("location.reload()"); } catch { }
         }
 
@@ -2089,7 +2201,7 @@ namespace FACTicket_Scanner
             try
             {
                 if (panelVisor.Visible) RecargarVisor();
-                else album.RegenerarAlbumInicial();
+                else albumPendiente = true; // se regenerará al abrir el panel
             }
             catch (Exception ex)
             {

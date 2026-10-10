@@ -116,20 +116,21 @@ namespace FACTicket_Scanner
 
     <!-- Controles -->
     <div id=""controles"">
-      <div id=""tabs-tipo"">
-        <button class=""tab-tipo activo"" onclick=""cambiarTipo('facturas',this)"">📄 Facturas</button>
-        <button class=""tab-tipo"" onclick=""cambiarTipo('albaranes',this)"">📦 Albaranes</button>
-        <button class=""tab-tipo"" onclick=""cambiarTipo('articulos',this)"">🛒 Artículos</button>
+      <div id=""fila-top"">
+        <div id=""tabs-tipo"">
+          <button class=""tab-tipo activo"" onclick=""cambiarTipo('facturas',this)"">📄 Facturas</button>
+          <button class=""tab-tipo"" onclick=""cambiarTipo('albaranes',this)"">📦 Albaranes</button>
+          <button class=""tab-tipo"" onclick=""cambiarTipo('articulos',this)"">🛒 Artículos</button>
+        </div>
+        <input type=""text"" id=""buscar"" placeholder=""🔍 Buscar empresa, número, CIF, fecha..."" oninput=""filtrar()"">
+        <span id=""contador""></span>
       </div>
-      <input type=""text"" id=""buscar"" placeholder=""🔍 Buscar empresa, número, CIF, fecha..."" oninput=""filtrar()"">
       <div id=""controles-fila2"">
         <div class=""ctrl-grupo"">
-          <label>Vista</label>
           <div id=""btns-vista"">
             <button class=""btn-vista"" onclick=""recargarPanel()"" title=""Actualizar / recargar panel"">⟳</button>
             <button class=""btn-vista solo-docs activo"" data-vista=""empresa"" onclick=""setVista('empresa',this)"" title=""Por empresa"">🏢</button>
             <button class=""btn-vista solo-docs"" data-vista=""guardado_desc"" onclick=""setVista('guardado_desc',this)"" title=""Últimas añadidas"">🕒</button>
-            <button class=""btn-vista solo-docs"" id=""btnAvanzado"" onclick=""toggleAvanzado()"" title=""Filtros avanzados"">⚙<span id=""nbAvanzado"" class=""nb""></span></button>
             <span class=""menu-exp"">
               <button class=""btn-vista"" onclick=""toggleMenuExportar(event)"" title=""Exportar lo mostrado"">📤 ▾</button>
               <div id=""menuExportar"" class=""dd-exp"">
@@ -138,13 +139,17 @@ namespace FACTicket_Scanner
                 <div onclick=""exportar('json')"">🧩 JSON</div>
                 <div onclick=""exportar('html')"">🌐 Informe HTML</div>
                 <div onclick=""exportar('pdf')"">📕 PDF (imprimir)</div>
+                <div class=""solo-docs"" onclick=""exportar('zip')"">📦 ZIP (PDF + álbum)</div>
               </div>
             </span>
           </div>
         </div>
         <div class=""ctrl-grupo solo-docs"">
-          <label>Tamaño</label>
-          <input type=""range"" id=""sliderMiniatura"" min=""60"" max=""400"" step=""5"" value=""120"" oninput=""ajustarTamanoMiniatura(this.value)"" title=""Mínimo = vista lista"">
+          <div id=""btns-modo"">
+            <button class=""btn-vista"" id=""btnModoLista"" onclick=""setModoVista(true)"" title=""Vista lista"">☰ Lista</button>
+            <button class=""btn-vista activo"" id=""btnModoTarjetas"" onclick=""setModoVista(false)"" title=""Vista tarjetas"">▦ Tarjetas</button>
+          </div>
+          <input type=""range"" id=""sliderMiniatura"" min=""60"" max=""400"" step=""5"" value=""120"" oninput=""ajustarTamanoMiniatura(this.value)"" title=""Tamaño de las tarjetas (mínimo = lista)"">
           <span id=""lblTam""></span>
         </div>
         <div class=""ctrl-grupo"">
@@ -165,49 +170,54 @@ namespace FACTicket_Scanner
           <label>Empresa</label>
           <select id=""filtroEmpresa"" onchange=""filtrar()""><option value="""">Todas</option></select>
         </div>
-        <span id=""contador""></span>
+        <button class=""btn-vista solo-docs"" id=""btnAvanzado"" onclick=""toggleAvanzado()"" title=""Más filtros: fechas, importe, IVA, pago, presentada, empresas"">⚙ Más filtros<span id=""nbAvanzado"" class=""nb""></span></button>
       </div>
 
-      <!-- Filtros avanzados (botón ⚙) -->
+      <!-- Más filtros (botón ⚙), agrupados por secciones -->
       <div id=""panel-avanzado"" style=""display:none"">
-        <div class=""av-g""><label>Fecha documento desde</label><input type=""date"" id=""avFechaDesde"" onchange=""filtrar()""></div>
-        <div class=""av-g""><label>Fecha documento hasta</label><input type=""date"" id=""avFechaHasta"" onchange=""filtrar()""></div>
-        <div class=""av-g""><label>Factura añadida</label>
-          <select id=""avAddPreset"" onchange=""aplicarPresetAnadida()"">
-            <option value="""">Cualquier momento</option>
-            <option value=""hoy"">Hoy</option>
-            <option value=""7"">Últimos 7 días</option>
-            <option value=""30"">Últimos 30 días</option>
-            <option value=""mes"">Este mes</option>
-            <option value=""rango"">Rango personalizado…</option>
-          </select></div>
-        <div class=""av-g""><label>Añadida desde</label><input type=""date"" id=""avAddDesde"" onchange=""rangoAnadidaManual()""></div>
-        <div class=""av-g""><label>Añadida hasta</label><input type=""date"" id=""avAddHasta"" onchange=""rangoAnadidaManual()""></div>
-        <div class=""av-g""><label>Importe mín. (€)</label><input type=""number"" id=""avImpMin"" step=""0.01"" oninput=""filtrar()""></div>
-        <div class=""av-g""><label>Importe máx. (€)</label><input type=""number"" id=""avImpMax"" step=""0.01"" oninput=""filtrar()""></div>
-        <div class=""av-g""><label>IVA</label><select id=""avIva"" onchange=""filtrar()""><option value="""">Todos</option></select></div>
-        <div class=""av-g""><label>Método de pago</label><select id=""avPago"" onchange=""filtrar()""><option value="""">Todos</option></select></div>
-        <div class=""av-g""><label>Presentada</label><select id=""avPres"" onchange=""filtrar()""><option value="""">Todas</option></select></div>
-        <div class=""av-g""><label>Ordenar por</label>
-          <select id=""avOrden"" onchange=""filtrar()"">
-            <option value="""">Por defecto</option>
-            <option value=""fecha_desc"">Fecha documento ↓ (más recientes)</option>
-            <option value=""fecha_asc"">Fecha documento ↑ (más antiguos)</option>
-            <option value=""total_desc"">Importe ↓ (mayor)</option>
-            <option value=""total_asc"">Importe ↑ (menor)</option>
-            <option value=""guardado_desc"">Añadida ↓ (últimas)</option>
-            <option value=""guardado_asc"">Añadida ↑ (primeras)</option>
-          </select></div>
-        <div class=""av-g av-emp""><label>Empresas (varias)</label><div id=""avEmpresas"" class=""av-emps""></div></div>
+        <div class=""av-sec"">
+          <div class=""av-sec-t"">Fechas</div>
+          <div class=""av-g""><label>Documento desde</label><input type=""date"" id=""avFechaDesde"" onchange=""filtrar()""></div>
+          <div class=""av-g""><label>Documento hasta</label><input type=""date"" id=""avFechaHasta"" onchange=""filtrar()""></div>
+          <div class=""av-g full""><label>Factura añadida</label>
+            <select id=""avAddPreset"" onchange=""aplicarPresetAnadida()"">
+              <option value="""">Cualquier momento</option>
+              <option value=""hoy"">Hoy</option>
+              <option value=""7"">Últimos 7 días</option>
+              <option value=""30"">Últimos 30 días</option>
+              <option value=""mes"">Este mes</option>
+              <option value=""rango"">Rango personalizado…</option>
+            </select></div>
+          <div class=""av-g""><label>Añadida desde</label><input type=""date"" id=""avAddDesde"" onchange=""rangoAnadidaManual()""></div>
+          <div class=""av-g""><label>Añadida hasta</label><input type=""date"" id=""avAddHasta"" onchange=""rangoAnadidaManual()""></div>
+        </div>
+        <div class=""av-sec"">
+          <div class=""av-sec-t"">Importe y clasificación</div>
+          <div class=""av-g""><label>Importe mín. (€)</label><input type=""number"" id=""avImpMin"" step=""0.01"" oninput=""filtrar()""></div>
+          <div class=""av-g""><label>Importe máx. (€)</label><input type=""number"" id=""avImpMax"" step=""0.01"" oninput=""filtrar()""></div>
+          <div class=""av-g""><label>IVA</label><select id=""avIva"" onchange=""filtrar()""><option value="""">Todos</option></select></div>
+          <div class=""av-g""><label>Método de pago</label><select id=""avPago"" onchange=""filtrar()""><option value="""">Todos</option></select></div>
+          <div class=""av-g""><label>Presentada</label><select id=""avPres"" onchange=""filtrar()""><option value="""">Todas</option></select></div>
+          <div class=""av-g""><label>Ordenar por</label>
+            <select id=""avOrden"" onchange=""filtrar()"">
+              <option value="""">Por defecto</option>
+              <option value=""fecha_desc"">Fecha documento ↓ (más recientes)</option>
+              <option value=""fecha_asc"">Fecha documento ↑ (más antiguos)</option>
+              <option value=""total_desc"">Importe ↓ (mayor)</option>
+              <option value=""total_asc"">Importe ↑ (menor)</option>
+              <option value=""guardado_desc"">Añadida ↓ (últimas)</option>
+              <option value=""guardado_asc"">Añadida ↑ (primeras)</option>
+            </select></div>
+        </div>
+        <div class=""av-sec"">
+          <div class=""av-sec-t"">Empresas</div>
+          <div class=""av-g av-emp full""><label>Empresas (varias)</label><div id=""avEmpresas"" class=""av-emps""></div></div>
+        </div>
       </div>
 
-      <!-- Filtros activos + vistas guardadas -->
+      <!-- Filtros activos (chips) -->
       <div id=""fila-chips"" class=""solo-docs"">
         <span id=""chipsActivos""></span>
-        <span class=""ctrl-grupo""><label>Vistas guardadas</label>
-          <select id=""selVistas"" onchange=""cargarVistaGuardada(this.value)""><option value="""">— elegir —</option></select></span>
-        <button class=""chip"" onclick=""guardarVistaActual()"" title=""Guarda búsqueda y filtros actuales con un nombre"">💾 Guardar vista</button>
-        <button class=""chip"" id=""btnBorrarVista"" onclick=""borrarVistaGuardada()"" style=""display:none"" title=""Borrar la vista elegida"">🗑</button>
         <button class=""chip"" id=""btnLimpiar"" onclick=""limpiarAvanzado()"" style=""display:none"">✕ Limpiar filtros avanzados</button>
       </div>
 
@@ -398,6 +408,14 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
 }
 #buscar:focus{outline:none;border-color:var(--azul);background:#fff;}
 #controles-fila2{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+#fila-top{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+#fila-top #tabs-tipo{margin-bottom:0;flex:none;}
+#fila-top #buscar{flex:1;min-width:140px;width:auto;margin-bottom:0;}
+#fila-top #contador{margin-left:0;}
+#btnAvanzado{padding:5px 12px;}
+#btns-modo{display:flex;gap:3px;}
+#sliderMiniatura{width:90px;}
+#controles-fila2 .ctrl-grupo{flex:none;}
 .ctrl-grupo{display:flex;align-items:center;gap:5px;}
 .ctrl-grupo label{font-size:.75em;color:var(--gris);white-space:nowrap;}
 .ctrl-grupo select{padding:5px 8px;border:1px solid var(--borde);border-radius:6px;font-size:.82em;}
@@ -467,12 +485,15 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#202124;he
 
 /* Vista lista (tabla) */
 #tabla-lista{width:100%;border-collapse:collapse;background:#fff;
-  border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+  border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
 #tabla-lista th{background:#f5f7fa;padding:9px 12px;text-align:left;
   font-size:.78em;color:var(--gris);text-transform:uppercase;
   border-bottom:2px solid var(--borde);}
 #tabla-lista td{padding:8px 12px;font-size:.83em;border-bottom:1px solid #f0f0f0;vertical-align:middle;}
 #tabla-lista tr:hover td{background:#f8f9fa;cursor:pointer;}
+#tabla-lista th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 var(--borde);}
+#tabla-lista tfoot td{position:sticky;bottom:0;z-index:2;background:#f5f7fa;font-weight:700;border-top:2px solid var(--borde);border-bottom:none;}
+#tabla-lista tfoot tr:hover td{background:#f5f7fa;cursor:default;}
 
 #vacio{text-align:center;padding:60px;color:#aaa;}
 
@@ -575,11 +596,15 @@ table.items tr:hover td{background:#f8f9fa;}
 .cx-act{display:inline-flex;gap:5px;align-items:center;background:var(--azul-s);color:var(--azul);border-radius:20px;padding:3px 6px 3px 11px;font-size:.78em;margin-right:6px;}
 .cx-act button{border:none;background:none;color:var(--azul);cursor:pointer;font-size:1em;}
 #panel-avanzado{margin-top:8px;padding:12px;background:#f8f9fa;border:1px solid var(--borde);border-radius:10px;
-  grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;}
+  grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;}
+.av-sec{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start;}
+.av-sec-t{grid-column:1/-1;font-size:.78em;font-weight:600;color:var(--gris);}
+.av-g.full{grid-column:1/-1;}
+@media(max-width:1100px){#panel-avanzado{grid-template-columns:1fr;}}
 .av-g{display:flex;flex-direction:column;gap:4px;}
 .av-g label{font-size:.72em;color:var(--gris);}
 .av-g input,.av-g select{padding:5px 8px;border:1px solid var(--borde);border-radius:6px;font-size:.82em;background:#fff;width:100%;font-family:inherit;}
-.av-emps{max-height:110px;overflow:auto;background:#fff;border:1px solid var(--borde);border-radius:6px;padding:4px 8px;}
+.av-emps{max-height:150px;overflow:auto;background:#fff;border:1px solid var(--borde);border-radius:6px;padding:4px 8px;}
 .av-emps label{display:flex;gap:6px;font-size:.8em;color:#202124;padding:1px 0;align-items:center;}
 .av-emps input{width:auto;}
 #lblTam{font-size:.75em;color:var(--gris);min-width:48px;}
@@ -984,6 +1009,13 @@ function setVista(v, btn){
   renderizar(listaFiltrada);
 }
 
+// Botones Lista / Tarjetas: lista = slider al mínimo; tarjetas = último tamaño de tarjeta usado.
+function setModoVista(lista){
+  const sl=document.getElementById('sliderMiniatura');
+  sl.value = lista ? SLIDER_LISTA : Math.max(SLIDER_LISTA+5, ultimoTamTarjeta);
+  ajustarTamanoMiniatura(sl.value);
+}
+
 // Slider de tamaño de miniatura: la altura se deriva del ancho (relación
 // aproximada 1.45:1, la misma que ya tenían las tarjetas a 160x110).
 function ajustarTamanoMiniatura(anchoPx){
@@ -994,7 +1026,10 @@ function ajustarTamanoMiniatura(anchoPx){
     document.documentElement.style.setProperty('--mini-w', w+'px');
     document.documentElement.style.setProperty('--mini-h', h+'px');
   }
-  document.getElementById('lblTam').textContent = lista ? '☰ Lista' : w+'px';
+  document.getElementById('lblTam').textContent = lista ? 'Lista' : w+'px';
+  if(!lista) ultimoTamTarjeta = w;   // recuerda el último tamaño de tarjeta para el botón Tarjetas
+  const bl=document.getElementById('btnModoLista'), bt=document.getElementById('btnModoTarjetas');
+  if(bl&&bt){ bl.classList.toggle('activo',lista); bt.classList.toggle('activo',!lista); }
   if(lista !== modoLista){
     modoLista = lista;
     if(lista && vistaActual==='guardado_desc'){ ordenListaCol='guardado'; ordenListaAsc=false; }
@@ -1141,6 +1176,10 @@ function renderLista(lista,c){
       <td>${fmtGuardado(t)||'—'}</td>
     </tr>`;
   }).join('');
+  // Totales de las columnas sumables (IVA y Total) de lo que se está mostrando
+  let sumIva=0, sumTotal=0;
+  ordenada.forEach(t=>{ sumIva+=num(t.iva); sumTotal+=num(t.total); });
+  sumIva=Math.round(sumIva*100)/100; sumTotal=Math.round(sumTotal*100)/100;
   const flecha=col=> ordenListaCol===col ? (ordenListaAsc?' ▲':' ▼') : '';
   c.innerHTML=`<table id=""tabla-lista"">
     <thead><tr>
@@ -1155,6 +1194,12 @@ function renderLista(lista,c){
       <th onclick=""ordenarLista('guardado')"" style=""cursor:pointer"">Añadida${flecha('guardado')}</th>
     </tr></thead>
     <tbody>${filas}</tbody>
+    <tfoot><tr>
+      <td colspan=""5"">Totales · ${ordenada.length} documento(s)</td>
+      <td style=""text-align:right"">${eur(sumIva)}</td>
+      <td style=""text-align:right"">${eur(sumTotal)}</td>
+      <td colspan=""2""></td>
+    </tr></tfoot>
   </table>`;
 }
 
@@ -1348,10 +1393,9 @@ function sec(t){ return `<div class=""seccion"">${t}</div>`; }
    ═══════════════════════════════════════════════════════════════════════ */
 const $id = id => document.getElementById(id);
 const SLIDER_LISTA = 60;          // valor mínimo del slider = vista lista
+let ultimoTamTarjeta = 120;       // último tamaño de tarjeta elegido (para volver desde la lista)
 let modoLista = false;            // true cuando el slider está al mínimo
 let empresasSel = [];             // empresas marcadas en filtros avanzados (vacío = todas)
-let vistasGuardadas = [];
-const CLAVE_VISTAS = 'facticket_vistas_v1';
 const IDS_AV = ['avFechaDesde','avFechaHasta','avAddPreset','avAddDesde','avAddHasta','avImpMin','avImpMax','avIva','avPago','avPres','avOrden'];
 const IDS_BASE = ['buscar','filtroAnio','filtroTrimestre','filtroEmpresa'];
 
@@ -1471,39 +1515,7 @@ function actualizarChips(){
   $id('btnLimpiar').style.display=a.length?'':'none';
   const nb=$id('nbAvanzado');
   nb.textContent=a.length||''; nb.style.display=a.length?'inline-block':'none';
-}
-
-/* ─── Vistas guardadas (localStorage; si no está disponible, solo en memoria) ─── */
-function leerVistas(){ try{ return JSON.parse(localStorage.getItem(CLAVE_VISTAS)||'[]'); }catch(e){ return vistasGuardadas||[]; } }
-function escribirVistas(v){ vistasGuardadas=v; try{ localStorage.setItem(CLAVE_VISTAS, JSON.stringify(v)); }catch(e){} }
-function cargarVistasGuardadas(){
-  vistasGuardadas=leerVistas();
-  $id('selVistas').innerHTML='<option value="""">— elegir —</option>'+vistasGuardadas.map((v,i)=>`<option value=""${i}"">${v.nombre}</option>`).join('');
-  $id('btnBorrarVista').style.display='none';
-}
-function guardarVistaActual(){
-  const n=(prompt('Nombre de la vista:','')||'').trim();
-  if(!n) return;
-  const o={}; IDS_AV.concat(IDS_BASE).forEach(i=>o[i]=$id(i).value); o.empresasSel=[...empresasSel];
-  const v=leerVistas().filter(x=>x.nombre!==n); v.push({nombre:n,datos:o});
-  escribirVistas(v); cargarVistasGuardadas();
-  $id('selVistas').value=String(v.length-1); $id('btnBorrarVista').style.display='';
-}
-function cargarVistaGuardada(i){
-  $id('btnBorrarVista').style.display = i===''?'none':'';
-  if(i==='') return;
-  const v=vistasGuardadas[parseInt(i,10)]; if(!v) return;
-  IDS_AV.concat(IDS_BASE).forEach(id=>{ const el=$id(id); if(el && v.datos[id]!==undefined) el.value=v.datos[id]; });
-  empresasSel=[...(v.datos.empresasSel||[])];
-  document.querySelectorAll('#avEmpresas input').forEach(c=>c.checked=empresasSel.includes(c.value));
-  filtrar();
-}
-function borrarVistaGuardada(){
-  const i=$id('selVistas').value; if(i==='') return;
-  const v=vistasGuardadas[parseInt(i,10)];
-  if(!v || !confirm('¿Borrar la vista ""'+v.nombre+'""?')) return;
-  escribirVistas(vistasGuardadas.filter((x,j)=>j!==parseInt(i,10)));
-  cargarVistasGuardadas();
+  $id('fila-chips').style.display=a.length?'':'none';
 }
 
 /* ─── Orden de las tarjetas (sustituye a los iconos de importe/fecha) ─── */
@@ -1568,9 +1580,18 @@ function guardarArchivo(nombre, contenido, mime, filtro){
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
 }
+// Pide a la aplicación un ZIP con los PDF de lo mostrado + Album.html (solo listas de documentos)
+function exportarZip(){
+  const items=[...listaFiltrada]; ordenarItems(items);
+  const jsons=items.map(t=>t.json).filter(Boolean);
+  if(!jsons.length){ alert('No hay documentos que exportar con los filtros actuales.'); return; }
+  if(window.chrome && window.chrome.webview) window.chrome.webview.postMessage({accion:'exportarZip', tipo:tipoActual, jsons:jsons});
+  else alert('El ZIP solo se puede generar desde la aplicación.');
+}
 function exportar(fmt){
   cerrarMenuExportar();
   if(fmt==='pdf'){ window.print(); return; }
+  if(fmt==='zip'){ exportarZip(); return; }
   const d=datosExportacion();
   if(!d.filas.length){ alert('No hay datos que exportar con los filtros actuales.'); return; }
   const f=new Date(), p2=n=>String(n).padStart(2,'0');
@@ -2155,13 +2176,66 @@ document.addEventListener('input',function(e){
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape'&&$id('modal-fus').classList.contains('activo')&&!$id('modal').classList.contains('activo')) cerrarFus();
 });
+/* ─── Estado del panel: se guarda al cambiar algo y se restaura al recargar ─── */
+const CLAVE_ESTADO = 'facticket_estado_panel_v1';
+const IDS_ART = ['artModo','artVar','artPct','artMin'];
+let restaurandoEstado = false;
+
+// Guarda cómo se está viendo el panel (pestaña, búsqueda, filtros, vista, tamaño, panel de
+// filtros abierto...). Si localStorage no está disponible, se ignora sin error.
+function guardarEstadoPanel(){
+  if(restaurandoEstado) return;
+  try{
+    const o={ tipo:tipoActual, vista:vistaActual, tam:$id('sliderMiniatura').value,
+      avAbierto:$id('panel-avanzado').style.display!=='none',
+      empresasSel:[...empresasSel], artVista:artVista, ordenCol:ordenListaCol, ordenAsc:ordenListaAsc,
+      tamTarjeta:ultimoTamTarjeta, campos:{} };
+    IDS_BASE.concat(IDS_AV, IDS_ART).forEach(i=>{ const el=$id(i); if(el) o.campos[i]=el.value; });
+    localStorage.setItem(CLAVE_ESTADO, JSON.stringify(o));
+  }catch(e){}
+}
+// Devuelve el panel al aspecto guardado. Se llama una vez al iniciar, antes del primer filtrar().
+function restaurarEstadoPanel(){
+  let o=null;
+  try{ o=JSON.parse(localStorage.getItem(CLAVE_ESTADO)||'null'); }catch(e){}
+  if(!o) return;
+  restaurandoEstado=true;
+  try{
+    const q=String.fromCharCode(39);
+    if(o.tipo && o.tipo!==tipoActual){
+      const btn=[...document.querySelectorAll('.tab-tipo')].find(b=>(b.getAttribute('onclick')||'').indexOf(q+o.tipo+q)>=0);
+      if(btn) cambiarTipo(o.tipo, btn);
+    }
+    Object.keys(o.campos||{}).forEach(i=>{ const el=$id(i); if(el) el.value=o.campos[i]; });
+    if(o.campos && o.campos.filtroAnio) sincronizarAnio(o.campos.filtroAnio, true);
+    empresasSel=[...(o.empresasSel||[])];
+    document.querySelectorAll('#avEmpresas input').forEach(c=>c.checked=empresasSel.includes(c.value));
+    if(o.vista){
+      vistaActual=o.vista;
+      document.querySelectorAll('.btn-vista[data-vista]').forEach(b=>b.classList.toggle('activo', b.dataset.vista===o.vista));
+    }
+    if(o.tamTarjeta) ultimoTamTarjeta=o.tamTarjeta;
+    if(o.tam){ $id('sliderMiniatura').value=o.tam; ajustarTamanoMiniatura(o.tam); }
+    if(o.ordenCol!==undefined){ ordenListaCol=o.ordenCol; ordenListaAsc=o.ordenAsc!==false; }   // orden de columnas de la lista
+    if(o.avAbierto && $id('panel-avanzado').style.display==='none') toggleAvanzado();
+    if(o.artVista) setArtVista(o.artVista);
+  }catch(e){ console.error(e); }
+  restaurandoEstado=false;
+}
+// Envuelve las funciones que cambian la vista para guardar el estado tras cada cambio.
+['filtrar','setVista','ajustarTamanoMiniatura','setModoVista','ordenarLista','toggleAvanzado','setArtVista'].forEach(n=>{
+  const f=window[n];
+  if(typeof f==='function') window[n]=function(){ const r=f.apply(this,arguments); guardarEstadoPanel(); return r; };
+});
+
 /* ─── Init ─── */
 poblarFiltros();
 poblarSelectorAnios();
 try{ dibujarGrafico(); filtrarTrimestre(); } catch(e){ console.error(e); }
 leerFusiones();
-cargarVistasGuardadas();
-document.getElementById('lblTam').textContent = document.getElementById('sliderMiniatura').value+'px';
+try{ localStorage.removeItem('facticket_vistas_v1'); }catch(e){}   // vistas guardadas eliminadas
+restaurarEstadoPanel();
+{ const v=document.getElementById('sliderMiniatura').value; document.getElementById('lblTam').textContent = parseInt(v,10)<=SLIDER_LISTA ? 'Lista' : v+'px'; }
 filtrar();
 window.addEventListener('resize',()=>{ try{ dibujarGrafico(); dibujarIvaTrimestral(); }catch(e){} });
 ";

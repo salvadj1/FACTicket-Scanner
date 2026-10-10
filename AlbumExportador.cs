@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -309,5 +311,79 @@ filtrar();
 </script>
 </body>
 </html>";
+
+        // -------------------------------------------------------------------
+        // Crea un ZIP con esta estructura:
+        //   Album.html   álbum independiente (listado + vista previa)
+        //   Facturas/    archivos exportados, SIN subcarpetas, con nombre
+        //                Empresa_AAAA-MM-DD_Numero[.ext]
+        // - carpetaTickets: carpeta raíz de la que cuelgan las rutas relativas del
+        //   DatosTicket (PdfRelativa, ImagenRelativa, JsonRelativa).
+        // - items: cada documento con su datos.json (ruta absoluta).
+        // - incPdf/incJson/incJpg/incOriginal: qué archivos se copian.
+        // - imagenSiFaltaPdf: si el documento no tiene PDF, copia su JPG procesado
+        //   para que el álbum no lo muestre vacío.
+        // No toca la interfaz (apto para un hilo secundario). Devuelve el nº de
+        // documentos, de archivos copiados y de archivos no encontrados.
+        // -------------------------------------------------------------------
+        public static (int documentos, int archivos, int faltantes) GenerarZip(
+            string carpetaTickets, string rutaZip, IList<(DatosTicket ticket, string rutaJson)> items,
+            bool incPdf, bool incJson, bool incJpg, bool incOriginal, bool imagenSiFaltaPdf = false)
+        {
+            int archivos = 0, faltantes = 0;
+            var usados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var entradas = new List<EntradaAlbum>();
+
+            // ZipFile.Open(Create) falla si el archivo existe; el diálogo ya pidió confirmar la sobrescritura.
+            if (File.Exists(rutaZip)) File.Delete(rutaZip);
+
+            using (var zip = ZipFile.Open(rutaZip, ZipArchiveMode.Create))
+            {
+                // Copia un archivo a "Facturas/" y devuelve su ruta dentro del ZIP (null si no se copia).
+                string? Copiar(string baseNombre, string? rutaRelativa, bool incluir, string sufijo)
+                {
+                    if (!incluir || string.IsNullOrWhiteSpace(rutaRelativa)) return null;
+                    string origen = Path.Combine(carpetaTickets, rutaRelativa);
+                    if (!File.Exists(origen)) { faltantes++; return null; }
+
+                    string nombre = NombreUnico(baseNombre + sufijo + Path.GetExtension(origen), usados);
+                    zip.CreateEntryFromFile(origen, "Facturas/" + nombre);
+                    archivos++;
+                    return "Facturas/" + nombre;
+                }
+
+                foreach (var (t, rutaJson) in items)
+                {
+                    string baseNombre = NombreBase(t);
+                    string rutaRel = Path.GetRelativePath(carpetaTickets, rutaJson).Replace('\\', '/');
+                    string carpeta = Path.GetDirectoryName(rutaRel) ?? "";
+                    string relOriginal = Path.Combine(carpeta, "original.jpg").Replace('\\', '/');
+                    bool jpg = incJpg || (imagenSiFaltaPdf && incPdf && string.IsNullOrWhiteSpace(t.PdfRelativa));
+
+                    entradas.Add(CrearEntrada(t,
+                        Copiar(baseNombre, t.PdfRelativa, incPdf, ""),
+                        Copiar(baseNombre, t.ImagenRelativa, jpg, ""),
+                        Copiar(baseNombre, relOriginal, incOriginal, "_original"),
+                        Copiar(baseNombre, t.JsonRelativa, incJson, "")));
+                }
+
+                var fechas = items
+                    .Select(i => FiltrosExportacion.ParsearFecha(i.ticket.Fecha))
+                    .Where(f => f.HasValue)
+                    .Select(f => f.GetValueOrDefault())
+                    .ToList();
+                string rango = fechas.Count > 0
+                    ? $"Del {fechas.Min().ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)} al {fechas.Max().ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}"
+                    : "Sin fechas";
+                string subtitulo = $"{rango} · generado el {DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)}";
+
+                string html = GenerarHtml(entradas, "Álbum de facturas", subtitulo);
+                var entradaHtml = zip.CreateEntry("Album.html", CompressionLevel.Optimal);
+                using (var escritor = new StreamWriter(entradaHtml.Open(), new UTF8Encoding(false)))
+                    escritor.Write(html);
+            }
+
+            return (items.Count, archivos, faltantes);
+        }
     }
 }

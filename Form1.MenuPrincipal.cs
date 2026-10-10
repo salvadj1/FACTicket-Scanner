@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -59,12 +60,19 @@ namespace FACTicket_Scanner
             };
         }
 
+        // Identifica la última petición de refresco del menú: las tareas de peticiones
+        // anteriores (p. ej. pulsar "Inicio" varias veces) se descartan al ver que ya no coincide.
+        private int menuRefrescoId = 0;
+
         // -------------------------------------------------------------------
-        // Muestra el menú (ocultando escáner y visor) y lo refresca con las
-        // estadísticas actuales. El cálculo va en segundo plano.
+        // Muestra el menú (ocultando escáner y visor) al instante: primero el
+        // esqueleto con las tarjetas en "…", y después las estadísticas se
+        // calculan en segundo plano y se envían a la página por tandas, de modo
+        // que las tarjetas se rellenan progresivamente sin bloquear la interfaz.
         // -------------------------------------------------------------------
         private async void MostrarMenuPrincipal()
         {
+            int id = ++menuRefrescoId;
             try
             {
                 panelIzquierdo.Visible = false;
@@ -76,6 +84,7 @@ namespace FACTicket_Scanner
                 panelMenuPrincipal.BringToFront();
 
                 await webViewMenu.EnsureCoreWebView2Async();
+                if (id != menuRefrescoId) return; // llegó una petición más reciente
                 if (!menuWebInicializado)
                 {
                     menuWebInicializado = true;
@@ -85,14 +94,60 @@ namespace FACTicket_Scanner
                     webViewMenu.CoreWebView2.WebMessageReceived += WebViewMenu_WebMessageReceived;
                 }
 
+                // 1) Menú ya visible, tarjetas en "…"
+                await NavegarMenuAsync(MenuPrincipalHtml.GenerarEsqueleto(Version.Trim(' ', '-')));
+                if (id != menuRefrescoId) return;
+
+                // 2) Estadísticas en segundo plano, enviadas a la página por tandas
                 string carpeta = Path.Combine(AppContext.BaseDirectory, NombreCarpeta);
-                EstadisticasMenu est = await Task.Run(() => MenuPrincipalHtml.CalcularEstadisticas(carpeta));
-                webViewMenu.CoreWebView2.NavigateToString(MenuPrincipalHtml.Generar(est, Version.Trim(' ', '-')));
+                await Task.Run(() => MenuPrincipalHtml.CalcularEstadisticas(
+                    carpeta, null, valores => EnviarValoresMenu(valores, id), 15, () => id != menuRefrescoId));
             }
             catch (Exception ex)
             {
                 Log("Menú principal: error al mostrar - " + ex.Message);
             }
+        }
+
+        // -------------------------------------------------------------------
+        // Carga un HTML en el WebView2 del menú y espera a que termine de
+        // cargarse (así los mensajes posteriores no se pierden). Reutilizable
+        // con cualquier WebView2 cambiando la referencia.
+        // -------------------------------------------------------------------
+        private async Task NavegarMenuAsync(string html)
+        {
+            var terminado = new TaskCompletionSource<bool>();
+            void AlTerminar(object? s, CoreWebView2NavigationCompletedEventArgs a) => terminado.TrySetResult(a.IsSuccess);
+
+            webViewMenu.CoreWebView2.NavigationCompleted += AlTerminar;
+            try
+            {
+                webViewMenu.CoreWebView2.NavigateToString(html);
+                await terminado.Task;
+            }
+            finally
+            {
+                webViewMenu.CoreWebView2.NavigationCompleted -= AlTerminar;
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // Envía a la página del menú los valores de las tarjetas ({clave:valor}).
+        // Se llama desde el hilo de cálculo: pasa al hilo de la interfaz y
+        // descarta el envío si el menú se refrescó o la ventana se cerró.
+        // -------------------------------------------------------------------
+        private void EnviarValoresMenu(Dictionary<string, string> valores, int id)
+        {
+            string json = System.Text.Json.JsonSerializer.Serialize(valores);
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (IsDisposed || id != menuRefrescoId) return;
+                    webViewMenu.CoreWebView2.PostWebMessageAsJson(json);
+                }));
+            }
+            catch { /* ventana cerrándose: nada que actualizar */ }
         }
 
         // -------------------------------------------------------------------
@@ -167,6 +222,7 @@ namespace FACTicket_Scanner
 
                 case "duplicados":
                     buscarDuplicadosToolStripMenuItem_Click(this, EventArgs.Empty);
+                    albumPendiente = true; // pudo borrar facturas: se regenerará al abrir el panel
                     MostrarMenuPrincipal();
                     break;
 
