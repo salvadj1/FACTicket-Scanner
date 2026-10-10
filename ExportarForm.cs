@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 
 namespace FACTicket_Scanner
@@ -24,6 +25,34 @@ namespace FACTicket_Scanner
         private ComboBox cmbEmpresa = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220 };
         private Button btnFiltrar = new() { Text = "Filtrar" };
 
+        // --- Filtros avanzados (panel plegable bajo la barra de filtros) ---
+        private Button btnAvanzados = new() { Text = "Filtros avanzados  ▼", Width = 190, Height = 28 };
+        private TableLayoutPanel panelAvanzado = new()
+        {
+            Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Visible = false, ColumnCount = 6, Padding = new Padding(8, 2, 8, 6)
+        };
+        private ComboBox cmbPresentacion = NuevoCombo();
+        private ComboBox cmbTrimestre = NuevoCombo();
+        private ComboBox cmbPago = NuevoCombo();
+        private ComboBox cmbIva = NuevoCombo();
+        private ComboBox cmbVencimiento = NuevoCombo();
+        private ComboBox cmbPdf = NuevoCombo();
+        private ComboBox cmbImagen = NuevoCombo();
+        private TextBox txtImporteMin = new() { Dock = DockStyle.Fill };
+        private TextBox txtImporteMax = new() { Dock = DockStyle.Fill };
+        private TextBox txtTexto = new() { Dock = DockStyle.Fill };
+        private CheckBox chkTipoFactura = new() { Text = "Facturas", Checked = true, AutoSize = true };
+        private CheckBox chkTipoAlbaran = new() { Text = "Albaranes", Checked = true, AutoSize = true };
+        private CheckBox chkTipoTicket = new() { Text = "Tickets", Checked = true, AutoSize = true };
+        private CheckBox chkSinFecha = new() { Text = "Incluir documentos sin fecha", Checked = true, AutoSize = true };
+        private Button btnLimpiarAvanzados = new() { Text = "Limpiar filtros avanzados", AutoSize = true };
+
+        // Evitan reentradas: _cargandoLista mientras se repuebla la lista;
+        // _suspenderFiltro mientras se restablecen varios controles a la vez.
+        private bool _cargandoLista;
+        private bool _suspenderFiltro;
+
         private CheckedListBox clbFacturas = new() { CheckOnClick = true, Dock = DockStyle.Fill };
         private Button btnMarcarTodas = new() { Text = "Marcar todas" };
         private Button btnDesmarcarTodas = new() { Text = "Desmarcar todas" };
@@ -36,11 +65,6 @@ namespace FACTicket_Scanner
         private Label lblEstado = new() { AutoSize = true, ForeColor = System.Drawing.Color.DimGray };
         private Button btnExportar = new() { Text = "Exportar a ZIP" };
         private Button btnCancelar = new() { Text = "Cancelar" };
-
-        private static readonly string[] FormatosFecha =
-        {
-            "yyyy-MM-dd", "dd/MM/yyyy", "dd-MM-yyyy", "MM/dd/yyyy", "yyyy/MM/dd"
-        };
 
         // Preferencias de exportación (formato preseleccionado, carpeta inicial y
         // abrir carpeta al terminar). Si es null se usan los valores clásicos.
@@ -55,14 +79,16 @@ namespace FACTicket_Scanner
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true; MinimizeBox = false; ShowInTaskbar = false;
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new System.Drawing.Size(480, 480);
-            MinimumSize = new System.Drawing.Size(420, 400);
+            ClientSize = new System.Drawing.Size(660, 640);
+            MinimumSize = new System.Drawing.Size(560, 480);
             Font = new System.Drawing.Font("Segoe UI", 9F);
 
             ConstruirUi();
             AplicarFormatoPorDefecto();
             CargarFacturasDesdeDisco();
             PoblarEmpresas();
+            PoblarFiltrosAvanzados();
+            ConectarEventosFiltros();
             AplicarFiltro();
         }
 
@@ -85,7 +111,15 @@ namespace FACTicket_Scanner
             btnFiltrar.Height = 30;
             btnFiltrar.Click += (s, e) => AplicarFiltro();
 
-            panelFiltros.Controls.AddRange(new Control[] { lblDesde, dtpDesde, lblHasta, dtpHasta, lblEmpresa, cmbEmpresa, btnFiltrar });
+            btnAvanzados.Location = new System.Drawing.Point(300, 36);
+            btnAvanzados.Click += (s, e) =>
+            {
+                panelAvanzado.Visible = !panelAvanzado.Visible;
+                RefrescarBotonAvanzados();
+            };
+            ConstruirPanelAvanzado();
+
+            panelFiltros.Controls.AddRange(new Control[] { lblDesde, dtpDesde, lblHasta, dtpHasta, lblEmpresa, cmbEmpresa, btnFiltrar, btnAvanzados });
 
             var panelBotonesLista = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 32, FlowDirection = FlowDirection.LeftToRight };
             btnMarcarTodas.Click += (s, e) => MarcarTodas(true);
@@ -107,8 +141,22 @@ namespace FACTicket_Scanner
             var panelInferior = new Panel { Dock = DockStyle.Bottom, Height = 66 };
             lblEstado.Location = new System.Drawing.Point(10, 6);
             lblEstado.MaximumSize = new System.Drawing.Size(450, 0);
-            btnCancelar.Location = new System.Drawing.Point(280, 28);
-            btnExportar.Location = new System.Drawing.Point(370, 28);
+            btnExportar.Width = 110;
+            btnCancelar.Top = btnExportar.Top = 28;
+            // Botones siempre pegados a la derecha, aunque se redimensione la ventana.
+            void AlinearInferior()
+            {
+                btnExportar.Left = panelInferior.ClientSize.Width - btnExportar.Width - 12;
+                btnCancelar.Left = btnExportar.Left - btnCancelar.Width - 8;
+                lblEstado.MaximumSize = new System.Drawing.Size(Math.Max(100, panelInferior.ClientSize.Width - 20), 0);
+            }
+            panelInferior.Resize += (s, e) => AlinearInferior();
+            Load += (s, e) => AlinearInferior();
+            clbFacturas.ItemCheck += (s, e) =>
+            {
+                // CheckedItems aún no refleja el cambio dentro del evento: se actualiza después.
+                if (!_cargandoLista && IsHandleCreated) BeginInvoke(new Action(ActualizarResumen));
+            };
             btnCancelar.Click += (s, e) => Close();
             btnExportar.Click += async (s, e) => await ExportarAsync();
             panelInferior.Controls.AddRange(new Control[] { lblEstado, btnCancelar, btnExportar });
@@ -116,7 +164,9 @@ namespace FACTicket_Scanner
             Controls.Add(panelLista);
             Controls.Add(panelInferior);
             Controls.Add(panelIncluir);
+            Controls.Add(panelAvanzado);   // antes que panelFiltros: queda justo debajo de él
             Controls.Add(panelFiltros);
+            AcceptButton = btnFiltrar;
         }
 
         // -----------------------------------------------------------------------
@@ -131,19 +181,8 @@ namespace FACTicket_Scanner
             {
                 var t = DatosTicket.CargarUnico(rutaJson);
                 if (t == null) continue;
-                _todasLasFacturas.Add((t, rutaJson, ParsearFecha(t.Fecha)));
+                _todasLasFacturas.Add((t, rutaJson, FiltrosExportacion.ParsearFecha(t.Fecha)));
             }
-        }
-
-        private static DateTime? ParsearFecha(string? fecha)
-        {
-            if (string.IsNullOrWhiteSpace(fecha)) return null;
-            if (DateTime.TryParseExact(fecha.Trim(), FormatosFecha, CultureInfo.InvariantCulture,
-                DateTimeStyles.None, out DateTime f))
-                return f;
-            if (DateTime.TryParse(fecha.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.None, out f))
-                return f;
-            return null;
         }
 
         private void PoblarEmpresas()
@@ -164,35 +203,230 @@ namespace FACTicket_Scanner
         }
 
         // -----------------------------------------------------------------------
-        // Filtra por fecha + empresa y repuebla la lista marcable
+        // Crea un desplegable de solo selección que rellena su celda.
+        // -----------------------------------------------------------------------
+        private static ComboBox NuevoCombo() =>
+            new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
+
+        // Sustituye los elementos del desplegable y selecciona el primero.
+        private static void Llenar(ComboBox combo, params string[] items)
+        {
+            combo.Items.Clear();
+            combo.Items.AddRange(items);
+            combo.SelectedIndex = 0;
+        }
+
+        // Añade a la rejilla del panel avanzado una etiqueta (columna) y su
+        // control (columna + 1), opcionalmente ocupando varias columnas.
+        private void Celda(string etiqueta, Control control, int columna, int fila, int colSpan = 1)
+        {
+            panelAvanzado.Controls.Add(new Label
+            {
+                Text = etiqueta, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 6, 6)
+            }, columna, fila);
+            panelAvanzado.Controls.Add(control, columna + 1, fila);
+            if (colSpan > 1) panelAvanzado.SetColumnSpan(control, colSpan);
+        }
+
+        // -----------------------------------------------------------------------
+        // Construye la rejilla del panel de filtros avanzados (3 pares
+        // etiqueta/control por fila). Los desplegables dinámicos (trimestre,
+        // pago, IVA) se rellenan después en PoblarFiltrosAvanzados().
+        // -----------------------------------------------------------------------
+        private void ConstruirPanelAvanzado()
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                panelAvanzado.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                panelAvanzado.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+            }
+
+            Llenar(cmbPresentacion, "(Todas)", "Presentadas", "No presentadas");
+            Llenar(cmbVencimiento, "(Todas)", "Vencidas", "No vencidas", "Sin vencimiento");
+            Llenar(cmbPdf, "(Indiferente)", "Con PDF", "Sin PDF");
+            Llenar(cmbImagen, "(Indiferente)", "Con imagen", "Sin imagen");
+
+            Celda("Presentación:", cmbPresentacion, 0, 0);
+            Celda("Trimestre:", cmbTrimestre, 2, 0);
+            Celda("Pago:", cmbPago, 4, 0);
+            Celda("Importe desde:", txtImporteMin, 0, 1);
+            Celda("hasta:", txtImporteMax, 2, 1);
+            Celda("IVA:", cmbIva, 4, 1);
+            Celda("Vencimiento:", cmbVencimiento, 0, 2);
+            Celda("PDF:", cmbPdf, 2, 2);
+            Celda("Imagen:", cmbImagen, 4, 2);
+
+            var tipos = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0) };
+            tipos.Controls.AddRange(new Control[] { chkTipoFactura, chkTipoAlbaran, chkTipoTicket });
+            Celda("Tipo:", tipos, 0, 3, 5);
+
+            Celda("Texto:", txtTexto, 0, 4, 3);
+            panelAvanzado.Controls.Add(chkSinFecha, 4, 4);
+            panelAvanzado.SetColumnSpan(chkSinFecha, 2);
+
+            panelAvanzado.Controls.Add(btnLimpiarAvanzados, 1, 5);
+        }
+
+        // -----------------------------------------------------------------------
+        // Rellena los desplegables que dependen de los datos existentes
+        // (trimestres presentados, métodos de pago y tipos de IVA).
+        // -----------------------------------------------------------------------
+        private void PoblarFiltrosAvanzados()
+        {
+            Llenar(cmbTrimestre, new[] { "(Todos)" }.Concat(_todasLasFacturas
+                .Select(x => (x.ticket.TrimestrePresentado ?? "").Trim())
+                .Where(t => t.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(t => t)).ToArray());
+
+            Llenar(cmbPago, new[] { "(Todos)" }.Concat(_todasLasFacturas
+                .Select(x => (x.ticket.MetodoPago ?? "").Trim())
+                .Where(m => m.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(m => m)).ToArray());
+
+            Llenar(cmbIva, new[] { "(Todos)" }.Concat(_todasLasFacturas
+                .Select(x => Math.Round(x.ticket.IvaPorcentaje, 2))
+                .Where(v => v > 0)
+                .Distinct()
+                .OrderBy(v => v)
+                .Select(v => v.ToString("0.##", CultureInfo.InvariantCulture) + " %")).ToArray());
+        }
+
+        // -----------------------------------------------------------------------
+        // Aplica el filtro automáticamente al cambiar cualquier criterio.
+        // -----------------------------------------------------------------------
+        private void ConectarEventosFiltros()
+        {
+            EventHandler cambio = (s, e) => { if (!_suspenderFiltro) AplicarFiltro(); };
+
+            foreach (var c in new[] { cmbEmpresa, cmbPresentacion, cmbTrimestre, cmbPago, cmbIva, cmbVencimiento, cmbPdf, cmbImagen })
+                c.SelectedIndexChanged += cambio;
+            foreach (var c in new[] { chkTipoFactura, chkTipoAlbaran, chkTipoTicket, chkSinFecha })
+                c.CheckedChanged += cambio;
+            foreach (var t in new[] { txtImporteMin, txtImporteMax, txtTexto })
+                t.TextChanged += cambio;
+            dtpDesde.ValueChanged += cambio;
+            dtpHasta.ValueChanged += cambio;
+
+            btnLimpiarAvanzados.Click += (s, e) => { LimpiarAvanzados(); AplicarFiltro(); };
+        }
+
+        // Restablece los criterios avanzados (no toca fechas ni empresa).
+        private void LimpiarAvanzados()
+        {
+            _suspenderFiltro = true;
+            foreach (var c in new[] { cmbPresentacion, cmbTrimestre, cmbPago, cmbIva, cmbVencimiento, cmbPdf, cmbImagen })
+                c.SelectedIndex = 0;
+            txtImporteMin.Clear(); txtImporteMax.Clear(); txtTexto.Clear();
+            chkTipoFactura.Checked = chkTipoAlbaran.Checked = chkTipoTicket.Checked = chkSinFecha.Checked = true;
+            _suspenderFiltro = false;
+        }
+
+        // Convierte el texto de un cuadro de importe en número (null si no hay dígitos).
+        private static double? LeerImporte(TextBox txt)
+        {
+            string s = txt.Text.Trim();
+            return s.Any(char.IsDigit) ? FiltrosExportacion.ParsearImporte(s) : (double?)null;
+        }
+
+        // Valor seleccionado de un desplegable cuyo primer elemento es "(Todos)".
+        private static string ValorSeleccionado(ComboBox combo) =>
+            combo.SelectedIndex > 0 ? combo.SelectedItem?.ToString() ?? "" : "";
+
+        // -----------------------------------------------------------------------
+        // Lee los controles y construye el conjunto de criterios de filtrado.
+        // -----------------------------------------------------------------------
+        private FiltrosExportacion LeerFiltros()
+        {
+            var f = new FiltrosExportacion
+            {
+                Desde = dtpDesde.Value.Date,
+                Hasta = dtpHasta.Value.Date,
+                IncluirSinFecha = chkSinFecha.Checked,
+                Empresa = ValorSeleccionado(cmbEmpresa),
+                Presentacion = (FiltroPresentacion)Math.Max(0, cmbPresentacion.SelectedIndex),
+                Trimestre = ValorSeleccionado(cmbTrimestre),
+                MetodoPago = ValorSeleccionado(cmbPago),
+                ImporteMin = LeerImporte(txtImporteMin),
+                ImporteMax = LeerImporte(txtImporteMax),
+                Vencimiento = (FiltroVencimiento)Math.Max(0, cmbVencimiento.SelectedIndex),
+                Pdf = (FiltroArchivo)Math.Max(0, cmbPdf.SelectedIndex),
+                Imagen = (FiltroArchivo)Math.Max(0, cmbImagen.SelectedIndex),
+                Texto = txtTexto.Text.Trim()
+            };
+
+            string iva = ValorSeleccionado(cmbIva).Replace("%", "").Trim();
+            if (iva.Length > 0 && double.TryParse(iva, NumberStyles.Float, CultureInfo.InvariantCulture, out double pct))
+                f.IvaPorcentaje = pct;
+
+            // Con los tres tipos marcados (o ninguno) no se filtra por tipo.
+            bool todos = chkTipoFactura.Checked && chkTipoAlbaran.Checked && chkTipoTicket.Checked;
+            bool ninguno = !chkTipoFactura.Checked && !chkTipoAlbaran.Checked && !chkTipoTicket.Checked;
+            if (!todos && !ninguno)
+            {
+                if (chkTipoFactura.Checked) f.Tipos.Add("factura");
+                if (chkTipoAlbaran.Checked) f.Tipos.Add("albaran");
+                if (chkTipoTicket.Checked) f.Tipos.Add("ticket");
+            }
+            return f;
+        }
+
+        // -----------------------------------------------------------------------
+        // Filtra con todos los criterios (básicos + avanzados) y repuebla la
+        // lista marcable. Todas las facturas resultantes quedan marcadas.
         // -----------------------------------------------------------------------
         private void AplicarFiltro()
         {
+            var filtros = LeerFiltros();
+            var filtradas = _todasLasFacturas
+                .Where(x => filtros.Cumple(x.ticket, x.fecha, _carpetaTickets))
+                .OrderByDescending(x => x.fecha ?? DateTime.MinValue)
+                .ToList();
+
+            _cargandoLista = true;
+            clbFacturas.BeginUpdate();
             clbFacturas.Items.Clear();
-
-            string empresaFiltro = cmbEmpresa.SelectedIndex > 0 ? cmbEmpresa.SelectedItem!.ToString()! : "";
-            DateTime desde = dtpDesde.Value.Date;
-            DateTime hasta = dtpHasta.Value.Date;
-
-            var filtradas = _todasLasFacturas.Where(x =>
-                (!x.fecha.HasValue || (x.fecha.Value.Date >= desde && x.fecha.Value.Date <= hasta)) &&
-                (string.IsNullOrEmpty(empresaFiltro) ||
-                 string.Equals((x.ticket.Empresa ?? "").Trim(), empresaFiltro, StringComparison.OrdinalIgnoreCase))
-            ).OrderByDescending(x => x.fecha ?? DateTime.MinValue);
-
             foreach (var (ticket, rutaJson, _) in filtradas)
             {
                 string etiqueta = $"{ticket.Empresa} | {ticket.Fecha} | {ticket.Numero} | {ticket.Total}";
                 clbFacturas.Items.Add(new FacturaListItem(ticket, rutaJson, etiqueta), true);
             }
+            clbFacturas.EndUpdate();
+            _cargandoLista = false;
 
-            lblEstado.Text = $"{clbFacturas.Items.Count} factura(s) encontradas.";
+            RefrescarBotonAvanzados();
+            ActualizarResumen();
+        }
+
+        // Texto del botón de filtros avanzados: nº de criterios activos y flecha ▲/▼.
+        private void RefrescarBotonAvanzados()
+        {
+            int activos = LeerFiltros().ContarAvanzadosActivos();
+            btnAvanzados.Text = "Filtros avanzados" + (activos > 0 ? $" ({activos})" : "") +
+                                (panelAvanzado.Visible ? "  ▲" : "  ▼");
+        }
+
+        // -----------------------------------------------------------------------
+        // Muestra cuántas facturas hay, cuántas están marcadas y su importe
+        // total (los albaranes no suman, igual que en el resto de la aplicación).
+        // -----------------------------------------------------------------------
+        private void ActualizarResumen()
+        {
+            var marcadas = clbFacturas.CheckedItems.Cast<FacturaListItem>().ToList();
+            double total = marcadas
+                .Where(m => !string.Equals(m.Ticket.TipoDocumento, "albaran", StringComparison.OrdinalIgnoreCase))
+                .Sum(m => FiltrosExportacion.ParsearImporte(m.Ticket.Total));
+            lblEstado.Text = $"{clbFacturas.Items.Count} encontrada(s) · {marcadas.Count} marcada(s) · total {total:N2} €";
         }
 
         private void MarcarTodas(bool marcar)
         {
+            _cargandoLista = true;
             for (int i = 0; i < clbFacturas.Items.Count; i++)
                 clbFacturas.SetItemChecked(i, marcar);
+            _cargandoLista = false;
+            ActualizarResumen();
         }
 
         // -----------------------------------------------------------------------
@@ -232,32 +466,22 @@ namespace FACTicket_Scanner
                 dlg.InitialDirectory = _ajustes.CarpetaExportacion;
             if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
+            // Se leen los controles aquí: el trabajo pesado corre en otro hilo.
+            string rutaZip = dlg.FileName;
+            bool incPdf = chkPdf.Checked, incJson = chkJson.Checked, incJpg = chkJpg.Checked, incOriginal = chkOriginal.Checked;
+
             btnExportar.Enabled = false;
             lblEstado.Text = "Generando ZIP...";
 
             try
             {
-                await System.Threading.Tasks.Task.Run(() =>
-                {
-                    using var zip = ZipFile.Open(dlg.FileName, ZipArchiveMode.Create);
-                    foreach (var item in seleccionadas)
-                    {
-                        var t = item.Ticket;
-                        AgregarSiExiste(zip, t.PdfRelativa, chkPdf.Checked);
-                        AgregarSiExiste(zip, t.JsonRelativa, chkJson.Checked);
-                        AgregarSiExiste(zip, t.ImagenRelativa, chkJpg.Checked);
+                var res = await System.Threading.Tasks.Task.Run(() =>
+                    GenerarZip(rutaZip, seleccionadas, incPdf, incJson, incJpg, incOriginal));
 
-                        if (chkOriginal.Checked)
-                        {
-                            string carpeta = Path.GetDirectoryName(RutaRelativa(item.RutaJson)) ?? "";
-                            AgregarSiExiste(zip, Path.Combine(carpeta, "original.jpg").Replace('\\', '/'), true);
-                        }
-                    }
-                });
-
-                lblEstado.Text = "Descarga completada.";
+                lblEstado.Text = $"ZIP creado: {res.documentos} documento(s) y {res.archivos} archivo(s) en Facturas/" +
+                                 (res.faltantes > 0 ? $" ({res.faltantes} no encontrados)." : ".");
                 if (_ajustes?.AbrirCarpetaAlExportar == true)
-                    ExportadorArchivos.AbrirCarpetaConArchivo(dlg.FileName);
+                    ExportadorArchivos.AbrirCarpetaConArchivo(rutaZip);
             }
             catch (Exception ex)
             {
@@ -269,15 +493,75 @@ namespace FACTicket_Scanner
             }
         }
 
+        // -----------------------------------------------------------------------
+        // Crea el ZIP con esta estructura:
+        //   Album.html            álbum independiente (listado + vista previa)
+        //   Facturas/             archivos exportados, SIN subcarpetas, con
+        //                         nombre Empresa_AAAA-MM-DD_Numero[.ext]
+        // No toca la interfaz (se ejecuta en un hilo secundario). Devuelve el
+        // nº de documentos, de archivos copiados y de archivos no encontrados.
+        // -----------------------------------------------------------------------
+        private (int documentos, int archivos, int faltantes) GenerarZip(string rutaZip, List<FacturaListItem> items,
+            bool incPdf, bool incJson, bool incJpg, bool incOriginal)
+        {
+            int archivos = 0, faltantes = 0;
+            var usados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var entradas = new List<AlbumExportador.EntradaAlbum>();
+
+            // ZipFile.Open(Create) falla si el archivo existe; el diálogo ya pidió confirmar la sobrescritura.
+            if (File.Exists(rutaZip)) File.Delete(rutaZip);
+
+            using (var zip = ZipFile.Open(rutaZip, ZipArchiveMode.Create))
+            {
+                // Copia un archivo a "Facturas/" y devuelve su ruta dentro del ZIP (null si no se copia).
+                string? Copiar(string baseNombre, string? rutaRelativa, bool incluir, string sufijo)
+                {
+                    if (!incluir || string.IsNullOrWhiteSpace(rutaRelativa)) return null;
+                    string origen = Path.Combine(_carpetaTickets, rutaRelativa);
+                    if (!File.Exists(origen)) { faltantes++; return null; }
+
+                    string nombre = AlbumExportador.NombreUnico(baseNombre + sufijo + Path.GetExtension(origen), usados);
+                    zip.CreateEntryFromFile(origen, "Facturas/" + nombre);
+                    archivos++;
+                    return "Facturas/" + nombre;
+                }
+
+                foreach (var item in items)
+                {
+                    var t = item.Ticket;
+                    string baseNombre = AlbumExportador.NombreBase(t);
+                    string carpeta = Path.GetDirectoryName(RutaRelativa(item.RutaJson)) ?? "";
+                    string relOriginal = Path.Combine(carpeta, "original.jpg").Replace('\\', '/');
+
+                    entradas.Add(AlbumExportador.CrearEntrada(t,
+                        Copiar(baseNombre, t.PdfRelativa, incPdf, ""),
+                        Copiar(baseNombre, t.ImagenRelativa, incJpg, ""),
+                        Copiar(baseNombre, relOriginal, incOriginal, "_original"),
+                        Copiar(baseNombre, t.JsonRelativa, incJson, "")));
+                }
+
+                var fechas = items
+                    .Select(i => FiltrosExportacion.ParsearFecha(i.Ticket.Fecha))
+                    .Where(f => f.HasValue)
+                    .Select(f => f.GetValueOrDefault())
+                    .ToList();
+                string rango = fechas.Count > 0
+                    ? $"Del {fechas.Min().ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)} al {fechas.Max().ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}"
+                    : "Sin fechas";
+                string subtitulo = $"{rango} · generado el {DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)}";
+
+                string html = AlbumExportador.GenerarHtml(entradas, "Álbum de facturas", subtitulo);
+                var entradaHtml = zip.CreateEntry("Album.html", CompressionLevel.Optimal);
+                using (var escritor = new StreamWriter(entradaHtml.Open(), new UTF8Encoding(false)))
+                    escritor.Write(html);
+            }
+
+            return (items.Count, archivos, faltantes);
+        }
+
+        // Ruta de un archivo relativa a la carpeta de facturas, con '/' como separador.
         private string RutaRelativa(string rutaAbsoluta) =>
             Path.GetRelativePath(_carpetaTickets, rutaAbsoluta).Replace('\\', '/');
-
-        private void AgregarSiExiste(ZipArchive zip, string? rutaRelativa, bool incluir)
-        {
-            if (!incluir || string.IsNullOrWhiteSpace(rutaRelativa)) return;
-            string rutaAbsoluta = Path.Combine(_carpetaTickets, rutaRelativa);
-            if (File.Exists(rutaAbsoluta)) zip.CreateEntryFromFile(rutaAbsoluta, rutaRelativa);
-        }
 
         private class FacturaListItem
         {
