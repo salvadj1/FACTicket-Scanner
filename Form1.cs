@@ -1689,14 +1689,40 @@ namespace FACTicket_Scanner
 
             string? rutaJsonVisor = rutaJsonVisorActual; // se guarda antes de cerrar el visor
             btnCerrarVisor_Click(null, EventArgs.Empty);
-            bool editadaOk = await AbrirEditorTicketAsync(img, rutaJsonAbs);
-
-            // Editada con éxito: vuelve al visor con la lista recargada y la factura abierta.
-            if (editadaOk)
+            bool editadaOk = false;
+            try
             {
-                rutaJsonVisorParaReabrir = rutaJsonVisor;
-                ReabrirVisorTrasEdicion();
+                editadaOk = await AbrirEditorTicketAsync(img, rutaJsonAbs);
             }
+            finally
+            {
+                if (editadaOk)
+                {
+                    // Guardada: vuelve al visor con la lista recargada y la factura abierta.
+                    rutaJsonVisorParaReabrir = rutaJsonVisor;
+                    ReabrirVisorTrasEdicion();
+                }
+                else
+                {
+                    // Cancelada o con error: vuelve al visor tal como estaba (sin recargar).
+                    MostrarVisorSinRecargar();
+                }
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // Vuelve a mostrar el panel del visor (web) sin recargar la página, de modo que se
+        // conservan el modal abierto, los filtros y el scroll. Oculta la pantalla de escaneo
+        // (logo izquierdo + ajustes de imagen derecho). Reutilizable tras cualquier
+        // pantalla temporal que haya ocultado el visor.
+        // -----------------------------------------------------------------------
+        private void MostrarVisorSinRecargar()
+        {
+            panelIzquierdo.Visible = false;
+            panelDerecho.Visible = false;
+            panelVisor.Visible = true;
+            panelVisor.BringToFront();
+            btnCerrarVisor.Visible = true;
         }
 
         // -----------------------------------------------------------------------
