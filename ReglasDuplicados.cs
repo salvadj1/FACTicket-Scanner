@@ -23,7 +23,7 @@ namespace FACTicket_Scanner
     public sealed class ReglasDuplicados
     {
         // Mínimo de reglas comparables necesarias para poder afirmar duplicado.
-        public const int MinimoReglas = 2;
+        public const int MinimoReglas = 4;
 
         // Reglas activas (por defecto: Nº + Fecha + Total; empresa desactivada).
         public bool Numero { get; set; } = true;
